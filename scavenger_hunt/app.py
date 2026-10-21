@@ -494,13 +494,13 @@ def api_admin_change_pin():
 
 
 # -------------------------------------------------------------
-# Raffle Draw / Lucky Draw (Top 50 Contestants Stage View)
+# Raffle Draw / Lucky Draw (Top 150 Contestants Stage View)
 # -------------------------------------------------------------
 
 @app.route("/admin/raffle")
 @require_admin
 def admin_raffle():
-    participants = database.get_raffle_eligible_participants(limit=50)
+    participants = database.get_raffle_eligible_participants(limit=150)
     winners = database.get_raffle_winners()
     return render_template(
         "admin_raffle.html",
@@ -513,7 +513,7 @@ def admin_raffle():
 @app.route("/api/raffle/participants")
 @require_admin
 def api_raffle_participants():
-    participants = database.get_raffle_eligible_participants(limit=50)
+    participants = database.get_raffle_eligible_participants(limit=150)
     return jsonify({"success": True, "participants": participants, "total": len(participants)})
 
 
@@ -533,16 +533,17 @@ def api_raffle_save_winner():
 
 
 @app.route("/api/raffle/seed-50", methods=["POST"])
+@app.route("/api/raffle/seed-150", methods=["POST"])
 @require_admin
-def api_raffle_seed_50():
-    added = database.seed_sample_raffle_participants(target_total=50)
-    participants = database.get_raffle_eligible_participants(limit=50)
+def api_raffle_seed_150():
+    added = database.seed_sample_raffle_participants(target_total=150)
+    participants = database.get_raffle_eligible_participants(limit=150)
     return jsonify({
         "success": True,
         "added": added,
         "total": len(participants),
         "participants": participants,
-        "message": f"Successfully ensured 50 eligible contestants (Added {added} demo participants)."
+        "message": f"Successfully ensured 150 eligible contestants (Added {added} demo participants)."
     })
 
 

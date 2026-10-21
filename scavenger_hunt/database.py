@@ -1004,10 +1004,10 @@ def get_user_detailed_profile(user_id: int) -> dict:
 # Raffle Draw / Lucky Draw Functions (Selective Admin Control)
 # -------------------------------------------------------------
 
-def get_raffle_eligible_participants(limit: int = 50):
+def get_raffle_eligible_participants(limit: int = 150):
     """
     Retrieves participants who completed all 5 QR codes AND were explicitly approved/selected
-    by Admin into `raffle_pool`, ordered by selection time, up to `limit` (default 50).
+    by Admin into `raffle_pool`, ordered by selection time, up to `limit` (default 150).
     """
     conn = get_db()
     cur = conn.cursor()
@@ -1147,11 +1147,11 @@ def clear_raffle_winners():
     conn.close()
 
 
-def seed_sample_raffle_participants(target_total: int = 50):
+def seed_sample_raffle_participants(target_total: int = 150):
     """
-    Populates sample completed contestants up to `target_total` (50)
-    so the administrator can test and showcase the full 50-person
-    raffle wheel immediately without waiting for 50 real players to finish.
+    Populates sample completed contestants up to `target_total` (150)
+    so the administrator can test and showcase the full 150-person
+    raffle wheel immediately without waiting for 150 real players to finish.
     """
     sample_first_names = [
         "Kasun", "Nuwan", "Amila", "Chamari", "Dinesh", "Kavindu", "Sithara", "Buddhika",
@@ -1160,15 +1160,18 @@ def seed_sample_raffle_participants(target_total: int = 50):
         "Sandeepa", "Oshada", "Piyumi", "Maduranga", "Senuri", "Gayan", "Anjali",
         "Danushka", "Sewwandi", "Isuru", "Upeksha", "Harsha", "Nadeesha", "Lakshan",
         "Shalika", "Vishwa", "Ishara", "Suresh", "Gayani", "Naveen", "Tharaka",
-        "Ruwan", "Hasini", "Dinuka", "Yashodha", "Asanka", "Purnima", "Charith"
+        "Ruwan", "Hasini", "Dinuka", "Yashodha", "Asanka", "Purnima", "Charith",
+        "Sahan", "Kaveesha", "Ruwani", "Chathura", "Sanduni", "Lahiru", "Supuni",
+        "Vindya", "Roshan", "Madusha", "Shehan", "Poornima", "Mahesh", "Hansika"
     ]
     sample_last_names = [
         "Perera", "Silva", "Fernando", "Jayasinghe", "Bandara", "Wickramasinghe",
         "Gunasekara", "Herath", "Dissanayake", "Senanayake", "Rajapaksha", "Fonseka",
-        "Karunaratne", "Amarasinghe", "Abeysekara", "Alwis", "Kulathunga", "Weerasinghe"
+        "Karunaratne", "Amarasinghe", "Abeysekara", "Alwis", "Kulathunga", "Weerasinghe",
+        "Samarasinghe", "Rathnayake", "Wijesinghe", "Liyanage", "Ranasinghe", "Cooray"
     ]
 
-    current_completed = get_raffle_eligible_participants(limit=100)
+    current_completed = get_raffle_eligible_participants(limit=target_total)
     needed = max(0, target_total - len(current_completed))
     if needed <= 0:
         return 0
@@ -1186,8 +1189,8 @@ def seed_sample_raffle_participants(target_total: int = 50):
     added = 0
     with conn:
         for i in range(needed):
-            fname = sample_first_names[i % len(sample_first_names)]
-            lname = sample_last_names[(i * 3) % len(sample_last_names)]
+            fname = sample_first_names[(i + len(current_completed)) % len(sample_first_names)]
+            lname = sample_last_names[((i + len(current_completed)) * 3) % len(sample_last_names)]
             full_name = f"{fname} {lname}"
             id_num = f"200{random.randint(1, 4)}{random.randint(10000000, 99999999)}"
             phone = f"07{random.choice(['7', '1', '2', '5', '8'])}{random.randint(1000000, 9999999)}"
