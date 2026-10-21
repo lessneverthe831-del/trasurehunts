@@ -107,7 +107,7 @@
                     වාසනා දිනුම් ඇදීමේ වේදිකාව
                 </h2>
                 <p class="text-xs sm:text-sm text-amber-300 font-semibold tracking-wider uppercase mt-1">
-                    Official Lucky Draw • Top 50 Qualified Finishers
+                    Official Lucky Draw • Top 150 Qualified Finishers
                 </p>
             </div>
 
@@ -147,7 +147,7 @@
                 <div id="reelStrip" class="space-y-4 py-8 transition-transform">
                     <div id="activeCandidateSlot" class="text-center p-4">
                         <span id="slotRank" class="inline-block px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-xs font-mono-numbers mb-1">
-                            #1 to #50 Contestants
+                            #1 to #150 Contestants
                         </span>
                         <h3 id="slotName" class="text-2xl sm:text-4xl font-black text-white tracking-tight truncate max-w-lg neon-text-cyan">
                             READY TO SPIN
@@ -173,17 +173,17 @@
                     <span>START RAFFLE DRAW (දිනුම් ඇදීම අරඹන්න)</span>
                 </button>
 
-                <button type="button" id="seedBtn" onclick="seedSample50()"
+                <button type="button" id="seedBtn" onclick="seedSample150()"
                     class="px-4 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-700 text-xs font-semibold transition-all flex items-center space-x-1.5"
-                    title="Seed demo contestants if fewer than 50 finished">
+                    title="Seed demo contestants if fewer than 150 finished">
                     <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
-                    <span>50 දෙනා සම්පූර්ණ කරන්න (Ensure 50)</span>
+                    <span>150 දෙනා සම්පූර්ණ කරන්න (Ensure 150)</span>
                 </button>
             </div>
 
             <div class="mt-5 text-[11px] text-slate-400 flex items-center justify-center space-x-2">
                 <i class="fa-solid fa-circle-check text-emerald-400"></i>
-                <span>Treasure Hunt සාර්ථකව අවසන් කළ තරඟකරුවන් 50 දෙනා අහඹු ලෙස තේරී පත්වේ.</span>
+                <span>Treasure Hunt සාර්ථකව අවසන් කර තෝරාගත් තරඟකරුවන් 150 දෙනා අතරින් අහඹු ලෙස තේරී පත්වේ.</span>
             </div>
         </div>
 
@@ -241,7 +241,7 @@
         <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
             <h3 class="font-bold text-white text-sm flex items-center space-x-2">
                 <i class="fa-solid fa-users text-amber-400"></i>
-                <span>දිනුම් ඇදීමට සුදුසුකම් ලත් 50 දෙනා</span>
+                <span>දිනුම් ඇදීමට සුදුසුකම් ලත් 150 දෙනා</span>
             </h3>
             <button onclick="toggleDrawer()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center">
                 <i class="fa-solid fa-xmark"></i>
@@ -272,10 +272,10 @@
                 </div>
             </div>
 
-            <!-- 50 Candidates Pool -->
+            <!-- 150 Candidates Pool -->
             <div class="space-y-2 pt-3 border-t border-slate-800">
                 <div class="text-slate-400 font-bold uppercase text-[11px] px-1">
-                    <span>📋 50 දෙනාගේ නාම ලැයිස්තුව (Contestants Pool)</span>
+                    <span>📋 150 දෙනාගේ නාම ලැයිස්තුව (Contestants Pool)</span>
                 </div>
                 <div id="contestantsPoolList" class="space-y-1.5">
                     {% for p in participants %}
@@ -378,7 +378,7 @@
         function startRaffleSpin() {
             if (isSpinning) return;
             if (!participants || participants.length === 0) {
-                alert("දිනුම් ඇදීමට තරඟකරුවන් නොමැත. කරුණාකර '50 දෙනා සම්පූර්ණ කරන්න' බොත්තම ඔබා sample data එකතු කරන්න. (No completed participants in pool. Click 'Ensure 50' to add).");
+                alert("දිනුම් ඇදීමට තරඟකරුවන් නොමැත. කරුණාකර Admin Panel එකෙන් තරඟකරුවන් තෝරන්න හෝ '150 දෙනා සම්පූර්ණ කරන්න' බොත්තම ඔබා sample data එකතු කරන්න. (No completed participants in pool. Click 'Ensure 150' to add).");
                 return;
             }
 
@@ -504,12 +504,12 @@
             drawer.classList.toggle("translate-x-full");
         }
 
-        // Seed 50 demo participants
-        async function seedSample50() {
-            if (!confirm("තරඟය නිමා කළ තරඟකරුවන් 50ක් පද්ධතිය තුළ නොමැති නම්, Demo තරඟකරුවන් 50ක් සම්පූර්ණ කිරීමට අවශ්‍යද? (Seed completed participants up to 50 for live testing?)")) return;
+        // Seed 150 demo participants
+        async function seedSample150() {
+            if (!confirm("තරඟය නිමා කළ තරඟකරුවන් 150ක් පද්ධතිය තුළ නොමැති නම්, Demo තරඟකරුවන් 150ක් සම්පූර්ණ කිරීමට අවශ්‍යද? (Seed completed participants up to 150 for live testing?)")) return;
 
             try {
-                const res = await fetch("{{ url_for('api_raffle_seed_50') }}", { method: "POST" });
+                const res = await fetch("{{ url_for('api_raffle_seed_150') }}", { method: "POST" });
                 const data = await res.json();
                 if (data.success) {
                     alert(data.message);

@@ -420,10 +420,10 @@
                     </div>
                     <div>
                         <h3 class="text-xl font-black text-white tracking-tight flex items-center space-x-2">
-                            <span>පළමු 50 දෙනාගේ මහා වාසනා දිනුම් ඇදීම</span>
-                            <span class="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono font-normal">GRAND RAFFLE</span>
+                            <span>මහා වාසනා දිනුම් ඇදීම (150 දෙනාගේ Raffle Draw)</span>
+                            <span class="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono font-normal">GRAND RAFFLE 150</span>
                         </h3>
-                        <p class="text-xs text-amber-300/80 mt-0.5">Top 50 Contestants Referral & Lucky Draw Controller</p>
+                        <p class="text-xs text-amber-300/80 mt-0.5">Top 150 Contestants Referral & Lucky Draw Controller</p>
                     </div>
                 </div>
 
@@ -439,7 +439,7 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                 <div class="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
                     <span class="text-xs text-slate-400">Raffle එකට ඔබ තෝරාගත් පිරිස (In Raffle Pool):</span>
-                    <div class="text-2xl font-black text-amber-400 font-mono" id="statRafflePoolDisplay">{{ stats.in_raffle }} / 50</div>
+                    <div class="text-2xl font-black text-amber-400 font-mono" id="statRafflePoolDisplay">{{ stats.in_raffle }} / 150</div>
                     <p class="text-[11px] text-slate-500">QR 5 සම්පූර්ණ කළ මුළු පිරිස: <span id="statTotalCompletedDisplay" class="text-white font-bold">{{ stats.completed }}</span></p>
                 </div>
                 <div class="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
@@ -450,7 +450,7 @@
                 <div class="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
                     <span class="text-xs text-slate-400">ක්‍රියාකාරීත්වය (Selective Control):</span>
                     <div class="text-xs text-slate-300 space-y-0.5 mt-1">
-                        <div>🎯 QR 5ම ස්කෑන් කළ අයගෙන් ඔබ තෝරන අය පමණක් Raffle එකට එක්වේ.</div>
+                        <div>🎯 QR 5ම ස්කෑන් කළ අයගෙන් ඔබ තෝරන 150 දෙනා Raffle එකට එක්වේ.</div>
                         <div>✨ Fullscreen Projector & Tick Sound</div>
                     </div>
                 </div>
@@ -469,10 +469,10 @@
                         <i class="fa-solid fa-trash-can"></i>
                         <span>Raffle ලැයිස්තුව හිස් කරන්න (Clear Pool)</span>
                     </button>
-                    <button type="button" onclick="seedSampleRaffle50()"
+                    <button type="button" onclick="seedSampleRaffle150()"
                         class="px-3 py-2 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 font-bold text-xs border border-indigo-800/40 transition-all flex items-center space-x-1.5">
                         <i class="fa-solid fa-wand-magic-sparkles"></i>
-                        <span>Demo තරඟකරුවන් 50ක් එක් කරන්න (Seed 50)</span>
+                        <span>Demo තරඟකරුවන් 150ක් එක් කරන්න (Seed 150)</span>
                     </button>
                 </div>
 
@@ -673,7 +673,7 @@
 
                 // Update Raffle Pool Stats
                 const raffleDisp = document.getElementById('statRafflePoolDisplay');
-                if (raffleDisp) raffleDisp.textContent = `${data.stats.in_raffle} / 50`;
+                if (raffleDisp) raffleDisp.textContent = `${data.stats.in_raffle} / 150`;
                 const compDisp = document.getElementById('statTotalCompletedDisplay');
                 if (compDisp) compDisp.textContent = data.stats.completed;
 
@@ -1137,10 +1137,10 @@
         }
     }
 
-    async function seedSampleRaffle50() {
-        if (!confirm("Demo තරඟකරුවන් 50ක් පද්ධතියට එක් කර ඔවුන්ව Raffle එකට තෝරා ගැනීමට අවශ්‍යද? (Seed 50 demo participants for testing?)")) return;
+    async function seedSampleRaffle150() {
+        if (!confirm("Demo තරඟකරුවන් 150ක් පද්ධතියට එක් කර ඔවුන්ව Raffle එකට තෝරා ගැනීමට අවශ්‍යද? (Seed 150 demo participants for testing?)")) return;
         try {
-            const res = await fetch("{{ url_for('api_raffle_seed_50') }}", { method: "POST" });
+            const res = await fetch("{{ url_for('api_raffle_seed_150') }}", { method: "POST" });
             const data = await res.json();
             alert(data.message);
             fetchLiveAdminData();
