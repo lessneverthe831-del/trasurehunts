@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-lg mx-auto my-8">
+    <div class="glass-panel p-8 rounded-3xl shadow-2xl border border-slate-800 text-center relative overflow-hidden">
+        <!-- Background Glowing Circles -->
+        <div class="absolute -top-24 -left-24 w-48 h-48 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-24 -right-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- Radar Pulse Animation -->
+        <div class="relative w-28 h-28 mx-auto mb-6 flex items-center justify-center">
+            <span class="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-20 animate-ping"></span>
+            <span class="absolute inline-flex h-20 w-20 rounded-full bg-amber-500/30 animate-pulse"></span>
+            <div class="relative w-16 h-16 rounded-full bg-slate-900 border-2 border-amber-400 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/20">
+                <i class="fa-solid fa-hourglass-half text-2xl animate-spin" style="animation-duration: 4s;"></i>
+            </div>
+        </div>
+
+        <!-- Heading -->
+        <h2 class="text-2xl font-extrabold text-white tracking-tight">කරුණාකර රැඳී සිටින්න (Please Wait)</h2>
+        <p class="text-xs text-amber-400 font-semibold tracking-wider uppercase mt-1">Waiting for Admin Approval</p>
+        <p class="text-sm text-slate-300 mt-3 max-w-sm mx-auto leading-relaxed">
+            ඔබගේ ලියාපදිංචිය භාරගන්නා ලදී. Admin විසින් ඔබව අනුමත (Accept) කළ වහාම මෙම තිරය ස්වයංක්‍රීයව විවෘත වේ.
+            <br><span class="text-xs text-slate-400">(Your registration is submitted. This screen will auto-unlock once Admin approves your entry).</span>
+        </p>
+
+        <!-- User Information Card -->
+        <div class="my-6 p-4 rounded-2xl bg-slate-900/80 border border-slate-800 text-left space-y-2 text-xs">
+            <div class="flex justify-between items-center py-1 border-b border-slate-800/80">
+                <span class="text-slate-400">නම (Name):</span>
+                <span class="font-semibold text-white">{{ user.username }}</span>
+            </div>
+            <div class="flex justify-between items-center py-1 border-b border-slate-800/80">
+                <span class="text-slate-400">හැඳුනුම්පත් අංකය (ID):</span>
+                <span class="font-mono text-indigo-300 font-medium">{{ user.id_number }}</span>
+            </div>
+            <div class="flex justify-between items-center py-1 border-b border-slate-800/80">
+                <span class="text-slate-400">WhatsApp:</span>
+                <span class="font-mono text-emerald-400 font-medium">{{ user.whatsapp }}</span>
+            </div>
+            <div class="flex justify-between items-center py-1">
+                <span class="text-slate-400">වයස් සීමාව (Age):</span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {% if user.age_category == 'under_18' %}bg-sky-500/20 text-sky-300 border border-sky-500/30{% else %}bg-purple-500/20 text-purple-300 border border-purple-500/30{% endif %}">
+                    {{ '18ට අඩු (Under 18)' if user.age_category == 'under_18' else '18ට වැඩි (18+)' }}
+                </span>
+            </div>
+        </div>
+
+        <!-- Live Sync Status Indicator -->
+        <div class="inline-flex items-center space-x-2 text-xs text-slate-400 bg-slate-900/60 px-3 py-1.5 rounded-full border border-slate-800">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Live Sync සක්‍රියයි (Real-time connection active)</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Live Polling every 1.5 seconds to detect Admin approval
+    const pollInterval = setInterval(async () => {
+        try {
+            const res = await fetch("{{ url_for('api_user_status') }}");
+            const data = await res.json();
+            
+            if (data.logged_in) {
+                // If status changed from waiting_approval to approved or further
+                if (data.status !== "waiting_approval") {
+                    clearInterval(pollInterval);
+                    // Flash success or direct transition
+                    window.location.href = "{{ url_for('terms') }}";
+                }
+            } else {
+                // Session lost
+                window.location.href = "{{ url_for('register') }}";
+            }
+        } catch (e) {
+            console.error("Polling error:", e);
+        }
+    }, 1500);
+</script>
+{% endblock %}

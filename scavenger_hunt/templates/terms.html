@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto my-6">
+    <div class="glass-panel p-6 sm:p-8 rounded-3xl shadow-2xl border border-slate-800 glow-brand">
+        <!-- Header -->
+        <div class="flex items-center space-x-3 mb-6 pb-4 border-b border-slate-800">
+            <div class="w-12 h-12 rounded-2xl bg-indigo-600/20 text-brand-400 border border-brand-500/30 flex items-center justify-center text-xl shadow-inner">
+                <i class="fa-solid fa-file-contract"></i>
+            </div>
+            <div>
+                <h2 class="text-2xl font-extrabold text-white tracking-tight">තරඟ නීති සහ කොන්දේසි (Terms & Conditions)</h2>
+                <p class="text-xs text-amber-300 font-medium">Treasure Hunt (නිධන් සෙවුම) Challenge Rules</p>
+            </div>
+        </div>
+
+        <!-- Approval Badge -->
+        <div class="mb-5 p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2">
+            <i class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
+            <span>ඔබව Admin විසින් සාර්ථකව අනුමත කරන ලදී! කරුණාකර පහත කොන්දේසි කියවා පිළිගන්න. (You are approved! Please review and accept the terms below).</span>
+        </div>
+
+        <!-- Terms Text Content -->
+        <div class="bg-slate-900/90 rounded-2xl p-5 border border-slate-800 text-slate-300 text-xs sm:text-sm leading-relaxed whitespace-pre-line max-h-80 overflow-y-auto space-y-3 shadow-inner">
+{{ terms_text }}
+        </div>
+
+        <!-- Checkbox & Accept Button -->
+        <form id="termsForm" class="mt-6 space-y-4">
+            <label class="flex items-start space-x-3 cursor-pointer group">
+                <input type="checkbox" id="agreeCheck" required
+                    class="mt-0.5 w-4 h-4 rounded text-brand-600 bg-slate-900 border-slate-700 focus:ring-brand-500 focus:ring-offset-slate-900">
+                <span class="text-xs text-slate-300 group-hover:text-white transition-colors">
+                    මම ඉහත සඳහන් සියලු නීති සහ කොන්දේසි හොඳින් කියවා තේරුම් ගත් අතර, ඒ සියල්ලටම එකඟ වෙමි. (I have read and agree to all terms and conditions).
+                </span>
+            </label>
+
+            <button type="button" id="acceptBtn" disabled
+                class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 opacity-50 cursor-not-allowed text-white font-bold text-sm tracking-wide shadow-lg shadow-indigo-600/20 transition-all flex items-center justify-center space-x-2">
+                <span>කොන්දේසි පිළිගෙන ප්‍රශ්නාවලියට පිවිසෙන්න (Accept Terms & Start Quiz)</span>
+                <i class="fa-solid fa-arrow-right text-xs"></i>
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const agreeCheck = document.getElementById("agreeCheck");
+    const acceptBtn = document.getElementById("acceptBtn");
+
+    agreeCheck.addEventListener("change", function() {
+        if (this.checked) {
+            acceptBtn.disabled = false;
+            acceptBtn.classList.remove("opacity-50", "cursor-not-allowed");
+            acceptBtn.classList.add("hover:from-brand-500", "hover:to-indigo-500", "hover:scale-[1.01]", "cursor-pointer");
+        } else {
+            acceptBtn.disabled = true;
+            acceptBtn.classList.add("opacity-50", "cursor-not-allowed");
+            acceptBtn.classList.remove("hover:from-brand-500", "hover:to-indigo-500", "hover:scale-[1.01]", "cursor-pointer");
+        }
+    });
+
+    acceptBtn.addEventListener("click", async function() {
+        if (!agreeCheck.checked) return;
+
+        acceptBtn.disabled = true;
+        acceptBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> පිවිසෙමින්... (Loading...)';
+
+        try {
+            const res = await fetch("{{ url_for('api_terms_accept') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            });
+            const data = await res.json();
+            if (data.success) {
+                window.location.href = data.redirect;
+            } else {
+                alert("දෝෂයක් සිදුවිය: " + (data.error || "Please try again"));
+                acceptBtn.disabled = false;
+                acceptBtn.innerHTML = '<span>කොන්දේසි පිළිගෙන ප්‍රශ්නාවලියට පිවිසෙන්න</span> <i class="fa-solid fa-arrow-right text-xs"></i>';
+            }
+        } catch (e) {
+            alert("සම්බන්ධතා දෝෂයකි. කරුණාකර නැවත උත්සාහ කරන්න.");
+            acceptBtn.disabled = false;
+            acceptBtn.innerHTML = '<span>කොන්දේසි පිළිගෙන ප්‍රශ්නාවලියට පිවිසෙන්න</span> <i class="fa-solid fa-arrow-right text-xs"></i>';
+        }
+    });
+</script>
+{% endblock %}

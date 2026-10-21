@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<!-- Canvas Confetti CDN -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto my-8 text-center space-y-6">
+    <div class="glass-panel p-8 sm:p-10 rounded-3xl shadow-2xl border border-emerald-500/30 glow-emerald relative overflow-hidden">
+        
+        <!-- Glowing Ambient Lights -->
+        <div class="absolute -top-32 -left-32 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-32 -right-32 w-64 h-64 bg-amber-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- Trophy Icon -->
+        <div class="relative w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+            <span class="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-20 animate-ping"></span>
+            <div class="relative w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 flex items-center justify-center text-4xl shadow-xl shadow-amber-500/30">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+        </div>
+
+        <!-- Victory Headline -->
+        <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold uppercase tracking-wider mb-2">
+            <i class="fa-solid fa-crown text-amber-400"></i>
+            <span>Treasure Hunt Completed & Verified</span>
+        </div>
+        
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
+            ඔබ තරඟය ජයග්‍රහණය කළා!
+        </h2>
+        <p class="text-sm sm:text-base text-amber-300 font-semibold mt-1">
+            Congratulations! You Won The Treasure Hunt!
+        </p>
+
+        <p class="text-xs sm:text-sm text-slate-300 mt-3 max-w-md mx-auto leading-relaxed">
+            ඔබ සියලු ප්‍රශ්නාවලි සහ අභියෝගාත්මක QR කේත 5ම සාර්ථකව සොයාගෙන තරඟය සම්පූර්ණ කර ඇත.
+        </p>
+
+        <!-- Player Summary Certificate Card -->
+        <div class="my-6 p-5 rounded-2xl bg-slate-900/90 border border-slate-800 text-left space-y-2.5 text-xs shadow-inner">
+            <div class="flex justify-between items-center py-1.5 border-b border-slate-800">
+                <span class="text-slate-400">ජයග්‍රාහකයා (Winner):</span>
+                <span class="font-bold text-white text-sm">{{ user.username }}</span>
+            </div>
+            <div class="flex justify-between items-center py-1.5 border-b border-slate-800">
+                <span class="text-slate-400">හැඳුනුම්පත් / ශිෂ්‍ය අංකය (ID):</span>
+                <span class="font-mono text-indigo-300 font-semibold">{{ user.id_number }}</span>
+            </div>
+            <div class="flex justify-between items-center py-1.5 border-b border-slate-800">
+                <span class="text-slate-400">WhatsApp:</span>
+                <span class="font-mono text-emerald-400 font-semibold">{{ user.whatsapp }}</span>
+            </div>
+            <div class="flex justify-between items-center py-1.5 border-b border-slate-800">
+                <span class="text-slate-400">වයස් සීමාව (Age Group):</span>
+                <span class="font-semibold text-purple-300">{{ '18ට අඩු (Under 18)' if user.age_category == 'under_18' else '18ට වැඩි (18+)' }}</span>
+            </div>
+            <div class="flex justify-between items-center py-1.5">
+                <span class="text-slate-400">සම්පූර්ණ කළ වේලාව (Completed At):</span>
+                <span class="font-mono text-amber-300 font-semibold">{{ user.completed_at if user.completed_at else 'Just Now' }}</span>
+            </div>
+        </div>
+
+        <!-- 5 Cleared Checkpoints Grid -->
+        <div class="space-y-2 text-left">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
+                සම්පූර්ණ කළ ඉලක්ක 5 (5 Verified Targets)
+            </h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {% for cp in assigned_qrs %}
+                <div class="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/20 flex items-center space-x-2 text-emerald-300">
+                    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                    <span class="truncate font-medium">{{ cp.title }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="mt-8 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button onclick="triggerConfetti()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>සැමරුම් (Celebrate Again)</span>
+            </button>
+            <a href="{{ url_for('logout') }}" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition-all flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span>ඉවත් වන්න (Sign Out)</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function triggerConfetti() {
+        if (typeof confetti === 'function') {
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+            setTimeout(() => {
+                confetti({
+                    particleCount: 80,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 }
+                });
+                confetti({
+                    particleCount: 80,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 }
+                });
+            }, 300);
+        }
+    }
+
+    // Fire confetti on load
+    window.addEventListener("DOMContentLoaded", () => {
+        triggerConfetti();
+    });
+</script>
+{% endblock %}

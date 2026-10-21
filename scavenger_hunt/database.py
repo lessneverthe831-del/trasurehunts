@@ -1,0 +1,982 @@
+import sqlite3
+import json
+import random
+from datetime import datetime, timezone
+from config import DATABASE_PATH, DEFAULT_MASTER_PIN
+
+
+def get_db():
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+def init_db():
+    conn = get_db()
+    with conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            question TEXT NOT NULL,
+            option_a TEXT NOT NULL,
+            option_b TEXT NOT NULL,
+            option_c TEXT NOT NULL,
+            option_d TEXT NOT NULL,
+            correct_option TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS qr_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            title TEXT NOT NULL,
+            hint TEXT,
+            is_trap INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            id_number TEXT NOT NULL,
+            whatsapp TEXT NOT NULL,
+            age_category TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'waiting_approval',
+            assigned_question_ids TEXT,
+            assigned_qr_ids TEXT,
+            scanned_qr_ids TEXT DEFAULT '[]',
+            quiz_score INTEGER DEFAULT 0,
+            quiz_answers TEXT DEFAULT '{}',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            approved_at TIMESTAMP,
+            completed_at TIMESTAMP,
+            ip_address TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS scan_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            scanned_code TEXT NOT NULL,
+            result TEXT NOT NULL,
+            message TEXT,
+            scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS activity_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            action_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            details_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        """)
+
+        # Seed Settings if not present
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM settings WHERE key = 'master_pin'")
+        if not cur.fetchone():
+            cur.execute("INSERT INTO settings (key, value) VALUES ('master_pin', ?)", (DEFAULT_MASTER_PIN,))
+
+        cur.execute("SELECT value FROM settings WHERE key = 'terms_conditions'")
+        if not cur.fetchone():
+            default_terms = (
+                "1. සියලු තරඟකරුවන් Treasure Hunt (නිධන් සෙවුම) පරිශ්‍රය තුළ විසිරී ඇති රහස් ඉඟි (Clues) ඔස්සේ නිවැරදි QR කේත 5 අනුපිළිවෙලින් එකින් එක සොයා ස්කෑන් කළ යුතුය. (Participants must solve the clues to find and scan all 5 target QR codes sequentially, one by one.)\n"
+                "2. පළමු ඉඟිය සොයා ස්කෑන් කළ පසු දෙවන ඉඟියද, දෙවැන්නෙන් පසු තෙවැන්නද වශයෙන් පිළිවෙලින් විවෘත වේ. (Clues unlock progressively one after the other).\n"
+                "3. QR පුවරු හෝ සලකුණු වලට හානි කිරීම, ගැලවීම හෝ විකෘති කිරීම සපුරා තහනම්ය. (Do not tamper with or remove QR placards.)\n"
+                "4. වැරදි හෝ උපක්‍රමශීලී (Trap / Decoy) QR කේත පරිශ්‍රයේ ස්ථාපිත කර ඇති බැවින් ඒවා ස්කෑන් කිරීමෙන් වළකින්න. (Beware of trap / wrong QR codes.)\n"
+                "5. QR ස්කෑන් අංශයට පිවිසීමට පෙර ප්‍රශ්න 5ටම නිවැරදි පිළිතුරු (5/5) ලබා දිය යුතුය. එකක් හෝ වැරදුනහොත් නව ප්‍රශ්න 5ක් සමඟ නැවත උත්සාහ කළ යුතුය. (All 5 questions must be answered correctly. Any wrong answer will assign 5 fresh randomized questions on retry.)\n"
+                "6. තරඟ නීති උල්ලංඝනය කරන අය තරඟයෙන් ඉවත් කෙරේ. විනිසුරු මණ්ඩලයේ තීරණය අවසන් තීරණය වේ. (Fair play is mandatory. Judges' decision is final.)"
+            )
+            cur.execute("INSERT INTO settings (key, value) VALUES ('terms_conditions', ?)", (default_terms,))
+
+        # Seed initial question bank if empty
+        cur.execute("SELECT COUNT(*) as cnt FROM questions")
+        if cur.fetchone()["cnt"] == 0:
+            initial_questions = [
+                (
+                    "ශ්‍රී ලංකාවේ ප්‍රථම විධායක ජනාධිපතිවරයා කවුද? (Who was the first Executive President of Sri Lanka?)",
+                    "ඩී. එස්. සේනානායක (D. S. Senanayake)",
+                    "ජේ. ආර්. ජයවර්ධන (J. R. Jayewardene)",
+                    "ආර්. ප්‍රේමදාස (R. Premadasa)",
+                    "විලියම් ගොපල්ලව (William Gopallawa)",
+                    "B"
+                ),
+                (
+                    "පරිගණක ජාලකරණයේදී 'IP' යන්නෙහි සම්පූර්ණ අර්ථය කුමක්ද? (What does 'IP' stand for in computer networking?)",
+                    "Internet Protocol",
+                    "Internal Program",
+                    "Instant Packet",
+                    "Interconnected Path",
+                    "A"
+                ),
+                (
+                    "ලෝකයේ උසම කන්ද කුමක්ද? (What is the highest mountain in the world?)",
+                    "කේ2 (K2)",
+                    "කන්චෙන්ජුන්ගා (Kangchenjunga)",
+                    "එවරස්ට් කන්ද (Mount Everest)",
+                    "කිලිමන්ජාරෝ (Kilimanjaro)",
+                    "C"
+                ),
+                (
+                    "සාර්ථක HTTP ප්‍රතිචාරයක් දැක්වෙන කේතය කුමක්ද? (Which HTTP status code indicates a successful response?)",
+                    "404 Not Found",
+                    "500 Internal Error",
+                    "200 OK",
+                    "301 Moved",
+                    "C"
+                ),
+                (
+                    "ශ්‍රී ලංකාවේ දිගම ගංගාව කුමක්ද? (What is the longest river in Sri Lanka?)",
+                    "කැළණි ගඟ (Kelani River)",
+                    "මහවැලි ගඟ (Mahaweli River)",
+                    "කළු ගඟ (Kalu River)",
+                    "වලවේ ගඟ (Walawe River)",
+                    "B"
+                ),
+                (
+                    "පයිතන් (Python) ක්‍රමලේඛන භාෂාව නිර්මාණය කළේ කවුද? (Who created Python?)",
+                    "Guido van Rossum",
+                    "James Gosling",
+                    "Dennis Ritchie",
+                    "Bjarne Stroustrup",
+                    "A"
+                ),
+                (
+                    "මිනිස් සිරුරේ ඇති විශාලතම අභ්‍යන්තර ඉන්ද්‍රිය කුමක්ද? (What is the largest internal organ in human body?)",
+                    "හෘදය (Heart)",
+                    "පෙණහලු (Lungs)",
+                    "අක්මාව (Liver)",
+                    "වකුගඩු (Kidneys)",
+                    "C"
+                ),
+                (
+                    "වෙබ් බ්‍රව්සරයක අඩංගු අංග ලේඛනය හැඩගැන්වීමට (Styling) යොදාගන්නේ කුමක්ද? (What is used for styling web documents?)",
+                    "HTML",
+                    "SQL",
+                    "CSS",
+                    "XML",
+                    "C"
+                )
+            ]
+            cur.executemany("""
+                INSERT INTO questions (question, option_a, option_b, option_c, option_d, correct_option)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, initial_questions)
+
+        # Seed initial QR Codes (Targets & Traps) with mystery clues
+        cur.execute("SELECT COUNT(*) as cnt FROM qr_codes")
+        if cur.fetchone()["cnt"] == 0:
+            initial_qrs = [
+                # Valid Target QR codes (is_trap = 0)
+                ("TARGET-LIB-101", "පුස්තකාලය (Library Checkpoint)", "පොත්පත් දහස් ගණනක් නිහඬව නිදන තැනේ, 1 වන මහලේ පැරණි ඉතිහාස පොත් රාක්කය අසල සඟවා ඇත.", 0),
+                ("TARGET-LAB-202", "පරිගණක විද්‍යාගාරය (Computer Lab)", "පරිගණක තිර රැසක් සහ ප්‍රධාන සර්වර් පද්ධතියේ නිල් විදුලි බුබුළු දැල්වෙන ප්‍රධාන බිත්තිය අසල...", 0),
+                ("TARGET-CAN-303", "ආපනශාලාව (Cafeteria Hub)", "දිවා ආහාරයේ සහ තේ පැන් සුවඳ පැතිරෙන, බඩගින්න නිවන ස්ථානයේ ප්‍රධාන පිවිසුම් දොර අසල...", 0),
+                ("TARGET-AUD-404", "ශ්‍රවණාගාරය (Auditorium Hall)", "නාට්‍ය හා මහා උත්සව පැවැත්වෙන විශාල ශාලාවේ, ප්‍රධාන වේදිකාවේ දකුණු පස තීරය අසල...", 0),
+                ("TARGET-GRN-505", "ක්‍රීඩා පිටිය (Sports Grounds)", "ක්‍රීඩකයන් තරඟ වදින හරිත තණතීරුවේ, ප්‍රධාන ප්‍රේක්ෂකාගාරයේ (Pavilion) ආලෝක කුළුණ අසල...", 0),
+                ("TARGET-ADM-606", "පරිපාලන ගොඩනැගිල්ල (Admin Complex)", "ආයතනයේ සියලුම ලේඛන සහ කළමනාකරණ කටයුතු සිදුවන ගොඩනැගිල්ලේ 2 වන මහලේ දැන්වීම් පුවරුව යට...", 0),
+                ("TARGET-GTE-707", "ප්‍රධාන පිවිසුම් දොරටුව (Main Gate)", "ආයතනයට ඇතුල් වන සහ පිටවන සියලු දෙනා පරීක්ෂා කරන ආරක්ෂක නිලධාරී මුරපොළ ඉදිරිපිට...", 0),
+                # Trap / Wrong QR Codes (is_trap = 1)
+                ("TRAP-DEC-901", "අන්තරායකාරී උගුල (Trap: Decoy Alpha)", "උගුල් කේතයකි - ස්කෑන් නොකරන්න! (Danger: Trap Code)", 1),
+                ("TRAP-DEC-902", "වැරදි මාර්ගය (Trap: Wrong Route Beta)", "උගුල් කේතයකි - වැරදි මාර්ගයකි! (Trap: Wrong Route)", 1),
+                ("TRAP-DEC-903", "ව්‍යාජ ඉලක්කය (Trap: Fake Target Gamma)", "උගුල් කේතයකි - මෙය ව්‍යාජ ඉලක්කයකි! (Trap: Fake Target)", 1)
+            ]
+            cur.executemany("""
+                INSERT INTO qr_codes (code, title, hint, is_trap)
+                VALUES (?, ?, ?, ?)
+            """, initial_qrs)
+
+    conn.close()
+
+
+# -------------------------------------------------------------
+# Activity Logging
+# -------------------------------------------------------------
+
+def log_user_activity(user_id: int, action_type: str, title: str, description: str = "", details_dict: dict = None):
+    """
+    Records an activity audit log entry for the contestant.
+    """
+    conn = get_db()
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    with conn:
+        conn.execute("""
+            INSERT INTO activity_logs (user_id, action_type, title, description, details_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user_id, action_type, title, description, json.dumps(details_dict) if details_dict else None, now_str))
+    conn.close()
+
+
+def get_user_activities(user_id: int):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM activity_logs WHERE user_id = ? ORDER BY id DESC", (user_id,))
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# -------------------------------------------------------------
+# Settings & Configuration
+# -------------------------------------------------------------
+
+def get_setting(key: str, default: str = "") -> str:
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = cur.fetchone()
+    conn.close()
+    return row["value"] if row else default
+
+
+def set_setting(key: str, value: str):
+    conn = get_db()
+    with conn:
+        conn.execute("""
+            INSERT INTO settings (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """, (key, value))
+    conn.close()
+
+
+def verify_master_pin(entered_pin: str) -> bool:
+    master_pin = get_setting("master_pin", DEFAULT_MASTER_PIN)
+    return str(entered_pin).strip() == str(master_pin).strip()
+
+
+# -------------------------------------------------------------
+# User Functions
+# -------------------------------------------------------------
+
+def create_user(username: str, id_number: str, whatsapp: str, age_category: str, ip: str = None) -> int:
+    conn = get_db()
+    with conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO users (username, id_number, whatsapp, age_category, status, ip_address)
+            VALUES (?, ?, ?, ?, 'waiting_approval', ?)
+        """, (username.strip(), id_number.strip(), whatsapp.strip(), age_category.strip(), ip))
+        user_id = cur.lastrowid
+    conn.close()
+
+    age_label = "18ට අඩු (Under 18)" if age_category == "under_18" else "18ට වැඩි (18+)"
+    log_user_activity(
+        user_id=user_id,
+        action_type="registered",
+        title="ලියාපදිංචි විය (Registered for Treasure Hunt)",
+        description=f"තරඟකරු ලියාපදිංචි වී Admin අනුමැතිය අපේක්ෂාවෙන් රැඳී සිටියි. (ID: {id_number}, WhatsApp: {whatsapp}, වයස: {age_label})"
+    )
+    return user_id
+
+
+def get_user_by_id(user_id: int):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_all_users():
+    """
+    Returns list of all users, enriched with latest activity status and counts.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users ORDER BY id DESC")
+    user_rows = cur.fetchall()
+
+    users = []
+    for u in user_rows:
+        ud = dict(u)
+        # Fetch latest activity
+        cur.execute("SELECT title, action_type, created_at FROM activity_logs WHERE user_id = ? ORDER BY id DESC LIMIT 1", (ud["id"],))
+        latest = cur.fetchone()
+        if latest:
+            ud["latest_activity"] = latest["title"]
+            ud["latest_activity_type"] = latest["action_type"]
+            ud["latest_activity_time"] = latest["created_at"]
+        else:
+            ud["latest_activity"] = "ලියාපදිංචි විය (Registered)"
+            ud["latest_activity_type"] = "registered"
+            ud["latest_activity_time"] = ud.get("created_at")
+
+        # Scanned and assigned QR counts
+        try:
+            scanned = json.loads(ud.get("scanned_qr_ids") or "[]")
+            assigned = json.loads(ud.get("assigned_qr_ids") or "[]")
+            ud["scanned_count"] = len(scanned)
+            ud["assigned_count"] = len(assigned)
+            ud["current_step"] = len(scanned) + 1 if len(scanned) < len(assigned) else len(assigned)
+        except Exception:
+            ud["scanned_count"] = 0
+            ud["assigned_count"] = 5
+            ud["current_step"] = 1
+
+        users.append(ud)
+
+    conn.close()
+    return users
+
+
+def randomize_user_questions(user_id: int):
+    """
+    Randomizes a fresh set of 5 active questions for the user from the question pool.
+    Resets quiz_answers and quiz_score.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM questions WHERE is_active = 1")
+    q_rows = cur.fetchall()
+    all_q_ids = [r["id"] for r in q_rows]
+    sample_q_count = min(5, len(all_q_ids))
+    assigned_q_ids = random.sample(all_q_ids, sample_q_count) if all_q_ids else []
+
+    with conn:
+        conn.execute("""
+            UPDATE users
+            SET assigned_question_ids = ?,
+                quiz_score = 0,
+                quiz_answers = '{}'
+            WHERE id = ?
+        """, (json.dumps(assigned_q_ids), user_id))
+    conn.close()
+    return assigned_q_ids
+
+
+def approve_user(user_id: int):
+    """
+    Approves user, assigns 5 randomized questions and 5 randomized valid QR codes.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+
+    # 1. Randomize 5 active questions
+    cur.execute("SELECT id FROM questions WHERE is_active = 1")
+    q_rows = cur.fetchall()
+    all_q_ids = [r["id"] for r in q_rows]
+    sample_q_count = min(5, len(all_q_ids))
+    assigned_q_ids = random.sample(all_q_ids, sample_q_count) if all_q_ids else []
+
+    # 2. Randomize 5 valid QR codes (is_trap = 0)
+    cur.execute("SELECT id FROM qr_codes WHERE is_trap = 0")
+    qr_rows = cur.fetchall()
+    all_qr_ids = [r["id"] for r in qr_rows]
+    sample_qr_count = min(5, len(all_qr_ids))
+    assigned_qr_ids = random.sample(all_qr_ids, sample_qr_count) if all_qr_ids else []
+
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    with conn:
+        conn.execute("""
+            UPDATE users
+            SET status = 'approved',
+                approved_at = ?,
+                assigned_question_ids = ?,
+                assigned_qr_ids = ?,
+                scanned_qr_ids = '[]'
+            WHERE id = ?
+        """, (now_str, json.dumps(assigned_q_ids), json.dumps(assigned_qr_ids), user_id))
+    conn.close()
+
+    log_user_activity(
+        user_id=user_id,
+        action_type="approved",
+        title="Admin විසින් අනුමත කරන ලදී (Approved by Admin)",
+        description=f"තරඟකරුට අහඹු ප්‍රශ්න 5ක් (IDs: {assigned_q_ids}) සහ අනුපිළිවෙලින් සෙවිය යුතු QR ඉලක්ක 5ක් (IDs: {assigned_qr_ids}) පවරන ලදී."
+    )
+
+
+def reject_user(user_id: int):
+    conn = get_db()
+    with conn:
+        conn.execute("UPDATE users SET status = 'rejected' WHERE id = ?", (user_id,))
+    conn.close()
+
+    log_user_activity(
+        user_id=user_id,
+        action_type="rejected",
+        title="ලියාපදිංචිය ප්‍රතික්ෂේප විය (Declined by Admin)",
+        description="Admin විසින් මෙම තරඟකරුගේ ප්‍රවේශය ප්‍රතික්ෂේප කරන ලදී."
+    )
+
+
+def delete_user(user_id: int):
+    conn = get_db()
+    with conn:
+        conn.execute("DELETE FROM activity_logs WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM scan_logs WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.close()
+
+
+def update_terms_accepted(user_id: int):
+    conn = get_db()
+    with conn:
+        conn.execute("UPDATE users SET status = 'terms_accepted' WHERE id = ? AND status = 'approved'", (user_id,))
+    conn.close()
+
+    log_user_activity(
+        user_id=user_id,
+        action_type="terms_accepted",
+        title="නීති සහ කොන්දේසි පිළිගත්තා (Accepted Terms & Conditions)",
+        description="තරඟකරු නීති සහ කොන්දේසි කියවා පිළිගෙන ප්‍රශ්නාවලිය ආරම්භ කළේය."
+    )
+
+
+# -------------------------------------------------------------
+# Questions & Quiz Evaluation (With Retry Re-Randomization)
+# -------------------------------------------------------------
+
+def get_questions(active_only=False):
+    conn = get_db()
+    cur = conn.cursor()
+    if active_only:
+        cur.execute("SELECT * FROM questions WHERE is_active = 1 ORDER BY id ASC")
+    else:
+        cur.execute("SELECT * FROM questions ORDER BY id DESC")
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_user_assigned_questions(user_id: int):
+    user = get_user_by_id(user_id)
+    if not user or not user["assigned_question_ids"]:
+        return []
+    
+    try:
+        q_ids = json.loads(user["assigned_question_ids"])
+    except Exception:
+        q_ids = []
+
+    if not q_ids:
+        return []
+
+    placeholders = ",".join("?" for _ in q_ids)
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(f"SELECT * FROM questions WHERE id IN ({placeholders})", q_ids)
+    rows = cur.fetchall()
+    conn.close()
+    
+    # Maintain assigned order
+    rows_dict = {r["id"]: dict(r) for r in rows}
+    return [rows_dict[qid] for qid in q_ids if qid in rows_dict]
+
+
+def check_and_save_quiz_answers(user_id: int, answers_dict: dict) -> tuple[bool, int, str]:
+    """
+    Validates answers against the user's assigned questions.
+    Logs detailed question-by-question breakdown.
+    If score < 5, re-randomizes a fresh set of 5 questions for retry.
+    """
+    user_questions = get_user_assigned_questions(user_id)
+    if not user_questions:
+        return False, 0, "No questions found assigned to this user."
+
+    score = 0
+    total = len(user_questions)
+    breakdown = []
+
+    for idx, q in enumerate(user_questions, start=1):
+        qid_str = str(q["id"])
+        user_choice = str(answers_dict.get(qid_str, "")).strip().upper()
+        correct_choice = q["correct_option"].strip().upper()
+        is_corr = (user_choice == correct_choice)
+
+        if is_corr:
+            score += 1
+
+        breakdown.append({
+            "number": idx,
+            "question_id": q["id"],
+            "question": q["question"],
+            "user_choice": user_choice,
+            "correct_choice": correct_choice,
+            "is_correct": is_corr
+        })
+
+    all_correct = (score == total and total > 0)
+
+    conn = get_db()
+    with conn:
+        conn.execute("""
+            UPDATE users
+            SET quiz_score = ?,
+                quiz_answers = ?,
+                status = CASE WHEN ? THEN 'quiz_passed' ELSE status END
+            WHERE id = ?
+        """, (score, json.dumps(answers_dict), all_correct, user_id))
+    conn.close()
+
+    # Log rich activity
+    if all_correct:
+        log_title = f"🧠 ප්‍රශ්නාවලිය සාර්ථකව නිම කළා ({score}/{total} හරි)"
+        log_desc = f"ප්‍රශ්න 5ටම නිවැරදි පිළිතුරු (5/5) ලබාදී QR Hunt අදියර විවෘත කරගත්තා."
+        log_user_activity(
+            user_id=user_id,
+            action_type="quiz_attempt",
+            title=log_title,
+            description=log_desc,
+            details_dict={"score": score, "total": total, "all_correct": True, "breakdown": breakdown}
+        )
+        return True, score, "නියමයි! සියලු ප්‍රශ්න 5ටම නිවැරදි පිළිතුරු ලබා දුන්නා! (All 5 questions answered correctly! You unlocked the Treasure Hunt!)"
+
+    else:
+        # Failed quiz: Even one wrong answer means user cannot proceed.
+        # Automatically re-randomize a fresh set of 5 questions for retry!
+        wrong_count = total - score
+        new_random_ids = randomize_user_questions(user_id)
+
+        log_title = f"🧠 ප්‍රශ්නාවලිය ඉදිරිපත් කළා ({score}/{total} හරි, {wrong_count}ක් වැරදියි - නව ප්‍රශ්න පවරන ලදී)"
+        log_desc = f"තරඟකරු ප්‍රශ්න {total}න් {score}කට හරි පිළිතුරු දුන් අතර {wrong_count}ක් වැරදි විය. නැවත උත්සාහය සඳහා නව ප්‍රශ්න 5ක් (IDs: {new_random_ids}) ස්වයංක්‍රීයව පවරන ලදී."
+
+        log_user_activity(
+            user_id=user_id,
+            action_type="quiz_attempt",
+            title=log_title,
+            description=log_desc,
+            details_dict={"score": score, "total": total, "all_correct": False, "breakdown": breakdown, "new_random_ids": new_random_ids}
+        )
+
+        msg = (
+            f"ඔබ නිවැරදි පිළිතුරු ලබා දුන්නේ {score}/{total}කට පමණි ({wrong_count}ක් වැරදියි). "
+            f"QR Hunt අදියරට පිවිසීමට ප්‍රශ්න 5ම නිවැරදි විය යුතුය. "
+            f"ඔබගේ නැවත උත්සාහය සඳහා නව ප්‍රශ්න 5ක් සකස් කර ඇත (A fresh set of 5 randomized questions has been assigned). "
+            f"කරුණාකර නැවත උත්සාහ කරන්න!"
+        )
+        return False, score, msg
+
+
+def add_question(question: str, opt_a: str, opt_b: str, opt_c: str, opt_d: str, correct_opt: str):
+    conn = get_db()
+    with conn:
+        conn.execute("""
+            INSERT INTO questions (question, option_a, option_b, option_c, option_d, correct_option)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (question.strip(), opt_a.strip(), opt_b.strip(), opt_c.strip(), opt_d.strip(), correct_opt.strip().upper()))
+    conn.close()
+
+
+def delete_question(qid: int):
+    conn = get_db()
+    with conn:
+        conn.execute("DELETE FROM questions WHERE id = ?", (qid,))
+    conn.close()
+
+
+# -------------------------------------------------------------
+# QR Codes & Sequential Scavenger Hunt Evaluation
+# -------------------------------------------------------------
+
+def get_qr_codes():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM qr_codes ORDER BY is_trap ASC, id ASC")
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_qr_code_by_id(qrid: int):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM qr_codes WHERE id = ?", (qrid,))
+    row = cur.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_qr_code_by_code(code_str: str):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM qr_codes WHERE code = ? COLLATE NOCASE", (code_str.strip(),))
+    row = cur.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def add_qr_code(code: str, title: str, hint: str, is_trap: int = 0):
+    conn = get_db()
+    with conn:
+        conn.execute("""
+            INSERT INTO qr_codes (code, title, hint, is_trap)
+            VALUES (?, ?, ?, ?)
+        """, (code.strip().upper(), title.strip(), hint.strip() if hint else "", is_trap))
+    conn.close()
+
+
+def delete_qr_code(qrid: int):
+    conn = get_db()
+    with conn:
+        conn.execute("DELETE FROM qr_codes WHERE id = ?", (qrid,))
+    conn.close()
+
+
+def get_user_assigned_qr_codes(user_id: int):
+    user = get_user_by_id(user_id)
+    if not user or not user["assigned_qr_ids"]:
+        return []
+
+    try:
+        qr_ids = json.loads(user["assigned_qr_ids"])
+    except Exception:
+        qr_ids = []
+
+    if not qr_ids:
+        return []
+
+    placeholders = ",".join("?" for _ in qr_ids)
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(f"SELECT * FROM qr_codes WHERE id IN ({placeholders})", qr_ids)
+    rows = cur.fetchall()
+    conn.close()
+
+    rows_dict = {r["id"]: dict(r) for r in rows}
+    # Maintain assigned order (1st, 2nd, 3rd, 4th, 5th)
+    return [rows_dict[qid] for qid in qr_ids if qid in rows_dict]
+
+
+def process_qr_scan(user_id: int, scanned_code_raw: str) -> dict:
+    """
+    Evaluates scanned QR code against user's assigned QRs, enforcing SEQUENTIAL PROGRESSION:
+    The user MUST find Checkpoint 1 first, then 2, then 3, then 4, then 5!
+    """
+    code_str = str(scanned_code_raw).strip().upper()
+    user = get_user_by_id(user_id)
+    if not user:
+        return {"success": False, "status": "error", "message": "User not found"}
+
+    if user["status"] == "completed":
+        return {
+            "success": True,
+            "status": "already_completed",
+            "message": "ඔබ දැනටමත් තරඟය ජයග්‍රහණය කර ඇත! (You have already won the Treasure Hunt!)",
+            "scanned_count": 5,
+            "total": 5
+        }
+
+    try:
+        assigned_qr_ids = json.loads(user["assigned_qr_ids"] or "[]")
+        scanned_qr_ids = json.loads(user["scanned_qr_ids"] or "[]")
+    except Exception:
+        assigned_qr_ids = []
+        scanned_qr_ids = []
+
+    total_target = len(assigned_qr_ids)
+    current_index = len(scanned_qr_ids)
+    current_step_num = current_index + 1
+
+    qr_obj = get_qr_code_by_code(code_str)
+    conn = get_db()
+
+    # Case 1: Trap / Decoy QR Code!
+    if qr_obj and qr_obj["is_trap"] == 1:
+        msg = f"⚠️ වැරදි QR කේතයකි! ({qr_obj['title']}) මෙය උගුල් කේතයකි! (Trap / Wrong QR Code detected!)"
+        with conn:
+            conn.execute("""
+                INSERT INTO scan_logs (user_id, scanned_code, result, message)
+                VALUES (?, ?, 'trap', ?)
+            """, (user_id, code_str, msg))
+        conn.close()
+
+        log_user_activity(
+            user_id=user_id,
+            action_type="qr_scan_trap",
+            title=f"⚠️ උගුල් QR කේතයක් ස්කෑන් කළා: {code_str}",
+            description=f"තරඟකරු වැරදි උගුල් කේතයක් ස්කෑන් කළේය: {qr_obj['title']}",
+            details_dict={"code": code_str, "qr_title": qr_obj["title"], "is_trap": True}
+        )
+
+        return {
+            "success": False,
+            "status": "trap",
+            "message": msg,
+            "scanned_count": current_index,
+            "total": total_target,
+            "current_step": current_step_num
+        }
+
+    # Case 2: Code not found in system at all
+    if not qr_obj:
+        msg = f"❌ අවලංගු QR කේතයකි! '{code_str}' වලංගු නොවේ. (Invalid / Unknown QR code!)"
+        with conn:
+            conn.execute("""
+                INSERT INTO scan_logs (user_id, scanned_code, result, message)
+                VALUES (?, ?, 'invalid', ?)
+            """, (user_id, code_str, msg))
+        conn.close()
+
+        log_user_activity(
+            user_id=user_id,
+            action_type="qr_scan_wrong",
+            title=f"❌ නොදන්නා QR කේතයක් ස්කෑන් කළා: {code_str}",
+            description=f"පද්ධතියට අයත් නොවන අවලංගු QR කේතයක් ස්කෑන් කිරීමට උත්සාහ කළේය: {code_str}",
+            details_dict={"code": code_str, "is_unknown": True}
+        )
+
+        return {
+            "success": False,
+            "status": "invalid",
+            "message": msg,
+            "scanned_count": current_index,
+            "total": total_target,
+            "current_step": current_step_num
+        }
+
+    # Case 3: Already scanned earlier
+    if qr_obj["id"] in scanned_qr_ids:
+        msg = f"ℹ️ ඔබ මෙම ඉලක්කය ({qr_obj['title']}) දැනටමත් ස්කෑන් කර අවසන්. කරුණාකර වත්මන් ඉලක්ක අංක {current_step_num} සොයන්න. (Already scanned! Look for active Checkpoint #{current_step_num})."
+        conn.close()
+
+        log_user_activity(
+            user_id=user_id,
+            action_type="qr_scan_repeat",
+            title=f"ℹ️ දැනටමත් සොයාගත් ඉලක්කයක් නැවත ස්කෑන් කළා: {code_str}",
+            description=f"තරඟකරු දැනටමත් සම්පූර්ණ කර ඇති {qr_obj['title']} නැවත ස්කෑන් කළේය.",
+            details_dict={"code": code_str, "title": qr_obj["title"]}
+        )
+
+        return {
+            "success": False,
+            "status": "already_scanned",
+            "message": msg,
+            "scanned_count": current_index,
+            "total": total_target,
+            "current_step": current_step_num
+        }
+
+    # Sequential Validation: What is the current expected checkpoint ID?
+    if current_index >= total_target:
+        conn.close()
+        return {
+            "success": True,
+            "status": "already_completed",
+            "message": "ඔබ සියලු ඉලක්ක සම්පූර්ණ කර ඇත!",
+            "scanned_count": total_target,
+            "total": total_target
+        }
+
+    expected_qr_id = assigned_qr_ids[current_index]
+
+    # Case 4: Skipping ahead in sequence (e.g. scanning #3 before #1)
+    if qr_obj["id"] in assigned_qr_ids and qr_obj["id"] != expected_qr_id:
+        target_step_for_this_qr = assigned_qr_ids.index(qr_obj["id"]) + 1
+        msg = (
+            f"🔒 මෙම ඉලක්කය තවමත් අගුළු දමා ඇත! (Stage Locked!) "
+            f"මෙය {target_step_for_this_qr} වන ඉලක්කයයි. ඔබ පළමුව {current_step_num} වන ඉලක්කය සම්පූර්ණ කළ යුතුය. "
+            f"(You must clear Checkpoint #{current_step_num} before unlocking this)."
+        )
+        with conn:
+            conn.execute("""
+                INSERT INTO scan_logs (user_id, scanned_code, result, message)
+                VALUES (?, ?, 'out_of_order', ?)
+            """, (user_id, code_str, msg))
+        conn.close()
+
+        log_user_activity(
+            user_id=user_id,
+            action_type="qr_scan_out_of_order",
+            title=f"🔒 අනුපිළිවෙලට නොවන ඉලක්කයක් ස්කෑන් කළා: {code_str}",
+            description=f"තරඟකරු {current_step_num} වන ඉලක්කය සෙවීම වෙනුවට අනාගත {target_step_for_this_qr} වන ඉලක්කය ({qr_obj['title']}) ස්කෑන් කිරීමට උත්සාහ කළේය.",
+            details_dict={"code": code_str, "title": qr_obj["title"], "current_step": current_step_num, "target_step": target_step_for_this_qr}
+        )
+
+        return {
+            "success": False,
+            "status": "out_of_order",
+            "message": msg,
+            "scanned_count": current_index,
+            "total": total_target,
+            "current_step": current_step_num
+        }
+
+    # Case 5: Valid system QR code, but NOT in this user's assigned 5 list
+    if qr_obj["id"] not in assigned_qr_ids:
+        msg = f"⚠️ වැරදියි! මෙම QR කේතය ඔබගේ ඉලක්ක ලැයිස්තුවට අයත් නොවේ. (Wrong QR! Not part of your 5 targets)."
+        with conn:
+            conn.execute("""
+                INSERT INTO scan_logs (user_id, scanned_code, result, message)
+                VALUES (?, ?, 'unassigned', ?)
+            """, (user_id, code_str, msg))
+        conn.close()
+
+        log_user_activity(
+            user_id=user_id,
+            action_type="qr_scan_wrong",
+            title=f"⚠️ වැරදි QR කේතයක් ස්කෑන් කළා (තමාගේ ඉලක්කයක් නොවේ): {code_str}",
+            description=f"තරඟකරු තමාගේ ඉලක්ක ලැයිස්තුවට අයත් නොවන වෙනත් QR කේතයක් ({qr_obj['title']}) ස්කෑන් කළේය.",
+            details_dict={"code": code_str, "title": qr_obj["title"]}
+        )
+
+        return {
+            "success": False,
+            "status": "wrong",
+            "message": msg,
+            "scanned_count": current_index,
+            "total": total_target,
+            "current_step": current_step_num
+        }
+
+    # Case 6: SUCCESS! User scanned the exact current sequential target!
+    scanned_qr_ids.append(qr_obj["id"])
+    new_count = len(scanned_qr_ids)
+    is_finished = (new_count >= total_target)
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    with conn:
+        if is_finished:
+            conn.execute("""
+                UPDATE users
+                SET scanned_qr_ids = ?,
+                    status = 'completed',
+                    completed_at = ?
+                WHERE id = ?
+            """, (json.dumps(scanned_qr_ids), now_str, user_id))
+        else:
+            conn.execute("""
+                UPDATE users
+                SET scanned_qr_ids = ?
+                WHERE id = ?
+            """, (json.dumps(scanned_qr_ids), user_id))
+
+        log_msg = f"Sequential Checkpoint Cleared: #{current_step_num} - {qr_obj['title']} ({new_count}/{total_target})"
+        conn.execute("""
+            INSERT INTO scan_logs (user_id, scanned_code, result, message)
+            VALUES (?, ?, 'valid', ?)
+        """, (user_id, code_str, log_msg))
+    conn.close()
+
+    # Determine next checkpoint object if not finished
+    next_cp_obj = None
+    if not is_finished:
+        next_cp_id = assigned_qr_ids[new_count]
+        next_cp_obj = get_qr_code_by_id(next_cp_id)
+
+    if is_finished:
+        log_user_activity(
+            user_id=user_id,
+            action_type="completed",
+            title=f"🏆 Treasure Hunt තරඟය ජයග්‍රහණය කළා! (5/5 සම්පූර්ණයි)",
+            description=f"අවසාන 5 වන ඉලක්කය ({qr_obj['title']}) සාර්ථකව ස්කෑන් කර සියලු ඉලක්ක අනුපිළිවෙලින් සම්පූර්ණ කළේය!",
+            details_dict={"code": code_str, "scanned_count": new_count, "total": total_target}
+        )
+
+        return {
+            "success": True,
+            "status": "completed",
+            "scanned_count": new_count,
+            "total": total_target,
+            "current_step": 5,
+            "cleared_checkpoint": qr_obj,
+            "message": f"🎉 සුභ පැතුම්! ඔබ 5 වන ඉලක්කය ({qr_obj['title']}) සාර්ථකව සොයාගෙන Treasure Hunt තරඟය ජයග්‍රහණය කළා! (Congratulations! You won the Treasure Hunt!)"
+        }
+    else:
+        next_step_num = new_count + 1
+        log_user_activity(
+            user_id=user_id,
+            action_type="qr_scan_success",
+            title=f"🎯 {current_step_num} වන ඉලක්කය සම්පූර්ණ කළා: {qr_obj['title']} ({new_count}/{total_target})",
+            description=f"තරඟකරු {current_step_num} වන ඉලක්කය සාර්ථකව සොයාගත් අතර, {next_step_num} වන රහස් ඉඟිය විවෘත විය. ප්‍රගතිය: {new_count}/{total_target}.",
+            details_dict={"code": code_str, "cleared_title": qr_obj["title"], "scanned_count": new_count, "total": total_target, "next_step": next_step_num}
+        )
+
+        return {
+            "success": True,
+            "status": "valid",
+            "scanned_count": new_count,
+            "total": total_target,
+            "current_step": next_step_num,
+            "cleared_checkpoint": qr_obj,
+            "next_checkpoint": {
+                "id": next_cp_obj["id"],
+                "hint": next_cp_obj["hint"],
+                "step_num": next_step_num
+            } if next_cp_obj else None,
+            "message": f"✅ නියමයි! {current_step_num} වන ඉලක්කය ({qr_obj['title']}) සාර්ථකව සොයාගත්තා. ඊළඟ {next_step_num} වන රහස් ඉඟිය දැන් විවෘතයි! (Checkpoint #{current_step_num} verified! Clue #{next_step_num} unlocked!)"
+        }
+
+
+def get_user_detailed_profile(user_id: int) -> dict:
+    """
+    Returns full profile for Admin modal: user info, question-by-question breakdown,
+    assigned QR codes with sequential scan status, and full chronological activity logs.
+    """
+    user = get_user_by_id(user_id)
+    if not user:
+        return None
+
+    # Assigned questions breakdown
+    assigned_questions = get_user_assigned_questions(user_id)
+    try:
+        user_answers = json.loads(user["quiz_answers"] or "{}")
+    except Exception:
+        user_answers = {}
+
+    quiz_breakdown = []
+    for idx, q in enumerate(assigned_questions, start=1):
+        user_ans = user_answers.get(str(q["id"]), "")
+        is_correct = (user_ans.strip().upper() == q["correct_option"].strip().upper())
+        quiz_breakdown.append({
+            "number": idx,
+            "id": q["id"],
+            "question": q["question"],
+            "option_a": q["option_a"],
+            "option_b": q["option_b"],
+            "option_c": q["option_c"],
+            "option_d": q["option_d"],
+            "user_answer": user_ans,
+            "correct_option": q["correct_option"],
+            "is_correct": is_correct
+        })
+
+    # Assigned QR codes breakdown in sequential order
+    assigned_qrs = get_user_assigned_qr_codes(user_id)
+    try:
+        scanned_ids = json.loads(user["scanned_qr_ids"] or "[]")
+    except Exception:
+        scanned_ids = []
+
+    current_step_num = len(scanned_ids) + 1 if len(scanned_ids) < len(assigned_qrs) else len(assigned_qrs)
+
+    qr_breakdown = []
+    for idx, qr in enumerate(assigned_qrs, start=1):
+        is_scanned = (qr["id"] in scanned_ids)
+        is_active = (idx == current_step_num and not is_scanned)
+        is_locked = (idx > current_step_num)
+        qr_breakdown.append({
+            "number": idx,
+            "id": qr["id"],
+            "code": qr["code"],
+            "title": qr["title"],
+            "hint": qr["hint"],
+            "is_scanned": is_scanned,
+            "is_active": is_active,
+            "is_locked": is_locked
+        })
+
+    # Full activity logs
+    activities = get_user_activities(user_id)
+
+    return {
+        "user": user,
+        "quiz_breakdown": quiz_breakdown,
+        "qr_breakdown": qr_breakdown,
+        "activities": activities,
+        "scanned_count": len(scanned_ids),
+        "total_targets": len(assigned_qrs),
+        "current_step": current_step_num
+    }

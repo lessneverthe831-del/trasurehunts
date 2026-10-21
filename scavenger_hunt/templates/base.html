@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="si" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title if page_title else "Treasure Hunt Challenge" }}</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts: Inter & Noto Sans Sinhala -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans Sinhala', sans-serif;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glow-brand {
+            box-shadow: 0 0 25px -5px rgba(99, 102, 241, 0.4);
+        }
+        .glow-emerald {
+            box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.4);
+        }
+        .glow-rose {
+            box-shadow: 0 0 25px -5px rgba(244, 63, 94, 0.4);
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="min-h-full flex flex-col justify-between selection:bg-brand-500 selection:text-white">
+
+    <!-- Top Navigation Bar -->
+    <header class="glass-panel sticky top-0 z-40 border-b border-slate-800">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <a href="{{ url_for('index') }}" class="flex items-center space-x-3 group">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-400 flex items-center justify-center text-slate-950 shadow-lg group-hover:scale-105 transition-transform font-bold text-lg">
+                    <i class="fa-solid fa-gem"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg text-white leading-tight tracking-tight">Treasure Hunt (නිධන් සෙවුම)</h1>
+                    <p class="text-xs text-amber-300 font-medium">නිධානය සෙවීමේ අභියෝගය (Treasure Hunt Challenge)</p>
+                </div>
+            </a>
+
+            <div class="flex items-center space-x-3">
+                {% if session.get('user_id') %}
+                <div class="hidden sm:flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700 text-xs">
+                    <i class="fa-solid fa-user text-brand-400"></i>
+                    <span class="text-slate-200 font-medium">{{ session.get('username') }}</span>
+                </div>
+                <a href="{{ url_for('logout') }}" class="text-xs text-slate-400 hover:text-rose-400 px-2.5 py-1.5 rounded-lg border border-slate-800 hover:border-rose-900/50 hover:bg-rose-950/20 transition-all">
+                    <i class="fa-solid fa-right-from-bracket mr-1"></i> Exit
+                </a>
+                {% endif %}
+
+                {% if session.get('is_admin') %}
+                <a href="{{ url_for('admin_dashboard') }}" class="bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-indigo-600 hover:text-white transition-all flex items-center space-x-1.5">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>Admin Panel</span>
+                </a>
+                {% else %}
+                <a href="{{ url_for('admin_login') }}" class="text-xs text-slate-400 hover:text-slate-200 px-2 py-1 transition-colors flex items-center space-x-1" title="Admin Access">
+                    <i class="fa-solid fa-lock text-[11px]"></i>
+                    <span class="hidden sm:inline">Admin</span>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="mb-6 space-y-2">
+            {% for category, message in messages %}
+            <div class="p-4 rounded-xl flex items-center justify-between text-sm glass-panel 
+                {% if category == 'danger' %} border-rose-500/40 text-rose-300 bg-rose-950/40
+                {% elif category == 'success' %} border-emerald-500/40 text-emerald-300 bg-emerald-950/40
+                {% elif category == 'warning' %} border-amber-500/40 text-amber-300 bg-amber-950/40
+                {% else %} border-indigo-500/40 text-indigo-300 bg-indigo-950/40 {% endif %}">
+                <div class="flex items-center space-x-3">
+                    <i class="fa-solid 
+                        {% if category == 'danger' %} fa-circle-exclamation text-rose-400
+                        {% elif category == 'success' %} fa-circle-check text-emerald-400
+                        {% elif category == 'warning' %} fa-triangle-exclamation text-amber-400
+                        {% else %} fa-circle-info text-indigo-400 {% endif %} text-base"></i>
+                    <span>{{ message }}</span>
+                </div>
+                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white text-xs ml-4">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}
+        {{ main_content|safe if main_content else "" }}
+        {% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-900 py-4 text-center text-xs text-slate-500">
+        <p>© 2026 Treasure Hunt Challenge • QR Quest Platform • All Rights Reserved</p>
+    </footer>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Quest Complete! Mission Accomplished{% endblock %}
+
+{% block content %}
+<div class="card" style="border-color: rgba(16, 185, 129, 0.4); text-align: center; padding: 3rem 2rem; box-shadow: 0 15px 50px rgba(16, 185, 129, 0.2);">
+  <div style="font-size: 4.5rem; margin-bottom: 1rem; animation: pulse-step 2s infinite alternate;">
+    🏆
+  </div>
+
+  <span class="badge badge-success mono" style="font-size: 0.95rem; padding: 0.45rem 1.25rem; margin-bottom: 1.25rem;">
+    STATUS: COMPLETED &bull; MISSION ACCOMPLISHED
+  </span>
+
+  <h1 style="color: #34d399; font-size: 2.2rem; font-weight: 800; margin-bottom: 0.5rem;">
+    Congratulations, {{ user.username }}!
+  </h1>
+
+  <p style="color: var(--text-muted); font-size: 1.1rem; max-width: 600px; margin: 0 auto 2rem;">
+    You have mastered every challenge: solved the 5-question puzzle within the strict 2-minute timer and navigated all physical checkpoint locations to unlock the Central Vault.
+  </p>
+
+  <!-- Debriefing Card -->
+  <div style="background: #090e1a; border: 1px solid var(--border); border-radius: 12px; padding: 1.75rem; max-width: 680px; margin: 0 auto 2.5rem; text-align: left;">
+    <div style="font-weight: 700; font-size: 0.85rem; color: #38bdf8; text-transform: uppercase; margin-bottom: 1rem; letter-spacing: 0.5px;">
+      🎖️ Mission Completion Dossier
+    </div>
+
+    <div style="display: grid; grid-template-columns: 160px 1fr; gap: 0.75rem; font-size: 0.95rem;">
+      <span style="color: #64748b;">Player Handle:</span>
+      <span class="mono" style="color: var(--text-bright); font-weight: 700;">{{ user.username }}</span>
+
+      <span style="color: #64748b;">Final Status:</span>
+      <span class="mono" style="color: #34d399; font-weight: 700;">COMPLETED</span>
+
+      <span style="color: #64748b;">Stage 1 Quiz:</span>
+      <span style="color: #34d399;">Passed (5/5 Correct within 2 mins)</span>
+
+      <span style="color: #64748b;">Checkpoints Cleared:</span>
+      <span class="mono" style="color: var(--text-bright);">{{ scans|length }} Locations Verified</span>
+
+      <span style="color: #64748b;">Completed At:</span>
+      <span class="mono" style="color: #94a3b8;">{{ user.completed_at }} UTC</span>
+    </div>
+  </div>
+
+  <!-- Checkpoint Progression Log -->
+  <div style="max-width: 780px; margin: 0 auto 2rem; text-align: left;">
+    <h3 style="color: var(--text-bright); font-size: 1.15rem; margin-bottom: 1rem;">📍 Verified Checkpoint Trajectory</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Stage</th>
+          <th>Location</th>
+          <th>Marker Code</th>
+          <th>Timestamp (UTC)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for scan in scans %}
+          <tr>
+            <td><span class="badge badge-success mono">Stage {{ scan.stage_number }}</span></td>
+            <td style="font-weight: 600; color: var(--text-bright);">{{ scan.location_name }}</td>
+            <td class="mono" style="color: #38bdf8;">{{ scan.checkpoint_id }}</td>
+            <td class="mono" style="color: #94a3b8;">{{ scan.scanned_at }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div>
+    <a href="{{ url_for('logout') }}" class="btn btn-secondary">
+      <span>Sign Out & Close Terminal</span>
+    </a>
+  </div>
+</div>
+
+<!-- Final Completion Modal Popup -->
+{% if show_popup %}
+<div class="modal-overlay active" id="finalCompletionModal">
+  <div class="modal-content" style="border-color: rgba(16, 185, 129, 0.4);">
+    <div class="modal-icon">🎉🏆</div>
+    <h2 class="modal-title" style="color: #34d399;">Quest Mastered!</h2>
+    <div class="modal-body">
+      Congratulations Agent <strong>{{ user.username }}</strong>!
+      <br><br>
+      You have successfully scanned the <strong>Final Checkpoint: The Central Vault</strong> and completed the entire quest protocol!
+    </div>
+    <button type="button" class="btn btn-success btn-lg btn-block" onclick="document.getElementById('finalCompletionModal').classList.remove('active')">
+      <span>View Final Mission Certificate</span>
+    </button>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

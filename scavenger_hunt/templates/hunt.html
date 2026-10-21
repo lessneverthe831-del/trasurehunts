@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<!-- HTML5 QR Code Scanner Library -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+    #reader {
+        width: 100%;
+        max-width: 480px;
+        margin: 0 auto;
+        border-radius: 1rem;
+        overflow: hidden;
+    }
+    #reader video {
+        border-radius: 1rem;
+        object-fit: cover;
+    }
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        20%, 60% { transform: translateX(-8px); }
+        40%, 80% { transform: translateX(8px); }
+    }
+    .shake-animation {
+        animation: shake 0.5s ease-in-out;
+    }
+    @keyframes pop-unlock {
+        0% { transform: scale(0.95); opacity: 0.5; }
+        50% { transform: scale(1.03); opacity: 1; }
+        100% { transform: scale(1); }
+    }
+    .unlock-animation {
+        animation: pop-unlock 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto my-6 space-y-6">
+    <!-- Header Progress Card -->
+    <div class="glass-panel p-6 rounded-3xl shadow-xl border border-slate-800">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xl shadow-inner font-bold">
+                    <i class="fa-solid fa-gem"></i>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-extrabold text-white tracking-tight">අදියර 2: නිධන් සෙවුම (Stage 2: Treasure Hunt)</h2>
+                    <p class="text-xs text-amber-300 font-medium">අනුපිළිවෙලින් රහස් ඉඟි 5 විසඳා QR සොයන්න (Sequential 5-Target QR Quest)</p>
+                </div>
+            </div>
+
+            <!-- Live Progress Counter -->
+            <div class="flex items-center space-x-3 bg-slate-900/90 px-4 py-2.5 rounded-2xl border border-slate-700">
+                <span class="text-xs text-slate-300">ප්‍රගතිය (Progress):</span>
+                <div class="flex items-center space-x-1.5">
+                    <span id="scannedCounter" class="text-xl font-extrabold text-emerald-400 font-mono">{{ scanned_count }}</span>
+                    <span class="text-slate-500 font-bold">/</span>
+                    <span class="text-xl font-extrabold text-white font-mono">{{ total_count }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="mt-5">
+            <div class="w-full bg-slate-900 rounded-full h-3 p-0.5 border border-slate-800">
+                <div id="progressBar" class="bg-gradient-to-r from-amber-500 to-emerald-400 h-2 rounded-full transition-all duration-500"
+                    style="width: {{ (scanned_count / total_count * 100) if total_count > 0 else 0 }}%;"></div>
+            </div>
+            <div class="flex justify-between items-center text-[11px] text-slate-400 mt-2">
+                <span>ආරම්භය (Start)</span>
+                <span>එකින් එක පිළිවෙලින් 5ම සොයන්න (Clear Sequentially to Win)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Message Banner (Live Scan Result) -->
+    <div id="scanAlertBox" class="hidden p-5 rounded-2xl text-sm glass-panel transition-all"></div>
+
+    <!-- Main Scanner & Checkpoints Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Column: Camera Scanner & Manual Entry -->
+        <div class="lg:col-span-6 space-y-4">
+            <div class="glass-panel p-5 rounded-3xl border border-slate-800 shadow-xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-camera text-brand-400"></i>
+                        <span>QR කැමරා ස්කෑනරය (Camera Scanner)</span>
+                    </h3>
+                    <span class="text-[11px] text-slate-400 bg-slate-900 px-2.5 py-0.5 rounded-full border border-slate-800">Live Camera</span>
+                </div>
+
+                <!-- Scanner Viewport -->
+                <div id="readerContainer" class="relative bg-slate-950 rounded-2xl p-2 border border-slate-800 flex flex-col items-center justify-center min-h-[260px]">
+                    <div id="reader" class="hidden"></div>
+                    <div id="scannerPlaceholder" class="text-center p-6 space-y-3">
+                        <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 text-2xl">
+                            <i class="fa-solid fa-qrcode"></i>
+                        </div>
+                        <p class="text-xs text-slate-300 max-w-xs leading-relaxed">
+                            කැමරාව සක්‍රිය කර ඔබගේ වත්මන් ඉඟියට අදාළ QR කේතය ඉදිරියට අල්ලන්න.
+                            <br><span class="text-[11px] text-slate-400">(Activate camera to scan the active clue's QR code).</span>
+                        </p>
+                        <button type="button" id="startScannerBtn"
+                            class="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-lg shadow-brand-600/30 transition-all flex items-center justify-center mx-auto space-x-2">
+                            <i class="fa-solid fa-camera text-xs"></i>
+                            <span>කැමරාව ආරම්භ කරන්න (Start Camera)</span>
+                        </button>
+                    </div>
+
+                    <button type="button" id="stopScannerBtn" class="hidden mt-3 px-3 py-1.5 rounded-lg bg-rose-950/50 text-rose-300 border border-rose-800/50 text-xs font-semibold hover:bg-rose-900/60 transition-all">
+                        <i class="fa-solid fa-stop mr-1"></i> කැමරාව නවත්වන්න (Stop Camera)
+                    </button>
+                </div>
+
+                <!-- Manual Entry Section -->
+                <div class="mt-5 pt-4 border-t border-slate-800">
+                    <label for="manualCodeInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                        <i class="fa-solid fa-keyboard text-brand-400 mr-1"></i>කේතය අතින් ඇතුල් කරන්න (Manual Code Entry)
+                    </label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="manualCodeInput" placeholder="e.g. TARGET-LIB-101"
+                            class="flex-1 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 text-xs font-mono uppercase focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <button type="button" id="manualSubmitBtn"
+                            class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-brand-600 text-white font-bold text-xs border border-slate-700 hover:border-brand-500 transition-all flex items-center space-x-1">
+                            <span>ස්කෑන් කරන්න (Verify)</span>
+                            <i class="fa-solid fa-check text-xs"></i>
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1.5">
+                        කැමරා අවසර නොමැති විට හෝ පරිගණකයේදී කේතය ටයිප් කර Submit කළ හැක.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: SEQUENTIAL Checkpoint Progression (ONE AT A TIME) -->
+        <div class="lg:col-span-6 space-y-4">
+            
+            <div class="flex items-center justify-between px-1">
+                <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                    <i class="fa-solid fa-compass text-amber-400"></i>
+                    <span>අනුපිළිවෙලින් රහස් ඉඟි (Sequential Clues)</span>
+                </h3>
+                <span class="text-xs text-amber-300/80 font-mono">1 By 1 Unlock</span>
+            </div>
+
+            <!-- 1. THE ACTIVE CLUE CARD (PROMINENT GLOWING DISPLAY) -->
+            {% set active_cp = assigned_qrs[current_step - 1] if current_step <= total_count else None %}
+            <div id="activeClueCard" class="p-5 rounded-3xl border-2 border-amber-500/60 bg-amber-950/20 shadow-2xl relative overflow-hidden transition-all glow-brand">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-md shadow-amber-500/30">
+                            <span id="activeBadgeNumber">#{{ current_step }}</span>
+                        </div>
+                        <h4 class="text-sm font-extrabold text-white">
+                            <span>ඔබ දැන් සෙවිය යුතු ඉලක්කය</span>
+                            <span class="text-amber-400 block text-xs">(Active Secret Clue #<span id="activeStepText">{{ current_step }}</span>)</span>
+                        </h4>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                        <i class="fa-solid fa-crosshairs mr-1"></i> සක්‍රියයි (Active)
+                    </span>
+                </div>
+
+                <!-- Clue Body (ONLY THE CLUE IS DISPLAYED! LOCATION NAME IS HIDDEN!) -->
+                <div class="mt-3 p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-amber-100 text-xs sm:text-sm leading-relaxed shadow-inner">
+                    <div class="flex items-center space-x-1.5 text-amber-400 font-bold mb-1">
+                        <i class="fa-solid fa-lightbulb"></i>
+                        <span>රහස් ඉඟිය (Secret Clue):</span>
+                    </div>
+                    <p id="activeClueBody" class="font-medium text-slate-200 mt-1">
+                        {{ active_cp.hint if active_cp else "සියලු ඉලක්ක සම්පූර්ණයි!" }}
+                    </p>
+                </div>
+
+                <div class="mt-3 flex items-center space-x-2 text-[11px] text-slate-400">
+                    <i class="fa-solid fa-circle-info text-amber-400 text-xs"></i>
+                    <span>මෙම ඉඟිය විසඳා QR ස්කෑන් කළ පසු මීළඟ ඉඟිය ස්වයංක්‍රීයව විවෘත වේ.</span>
+                </div>
+            </div>
+
+            <!-- 2. CLEARED CHECKPOINTS (PREVIOUSLY COMPLETED) -->
+            <div id="clearedSection" class="space-y-2.5">
+                <div class="text-xs font-bold uppercase tracking-wider text-emerald-400 px-1 flex items-center space-x-1.5">
+                    <i class="fa-solid fa-circle-check"></i>
+                    <span>සොයාගත් ඉලක්ක (Solved Targets):</span>
+                </div>
+
+                <div id="clearedList" class="space-y-2">
+                    {% for cp in assigned_qrs %}
+                    {% if loop.index < current_step %}
+                    <div class="p-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 flex items-center justify-between text-xs">
+                        <div class="flex items-center space-x-2.5 min-w-0">
+                            <span class="w-6 h-6 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs shrink-0">
+                                <i class="fa-solid fa-check"></i>
+                            </span>
+                            <div class="min-w-0">
+                                <div class="font-bold text-white truncate">ඉලක්ක අංක #{{ loop.index }} සාර්ථකයි</div>
+                                <div class="text-emerald-300 text-[11px] truncate">සොයාගත් ස්ථානය: {{ cp.title }}</div>
+                            </div>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                            සම්පූර්ණයි
+                        </span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 3. UPCOMING LOCKED CHECKPOINTS (CLUES LOCKED) -->
+            <div id="lockedSection" class="space-y-2 pt-2 border-t border-slate-800/80">
+                <div class="text-xs font-bold uppercase tracking-wider text-slate-400 px-1 flex items-center space-x-1.5">
+                    <i class="fa-solid fa-lock"></i>
+                    <span>ඉදිරි ඉලක්ක - අගුළු දමා ඇත (Locked Upcoming Targets):</span>
+                </div>
+
+                <div id="lockedList" class="space-y-2">
+                    {% for cp in assigned_qrs %}
+                    {% if loop.index > current_step %}
+                    <div id="lockedCard-{{ loop.index }}" class="p-3 rounded-2xl bg-slate-900/40 border border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="w-6 h-6 rounded-lg bg-slate-800 text-slate-500 flex items-center justify-center font-bold text-xs shrink-0">
+                                <i class="fa-solid fa-lock"></i>
+                            </span>
+                            <div>
+                                <span class="font-semibold text-slate-400">රහස් ඉඟිය #{{ loop.index }} (Secret Clue #{{ loop.index }})</span>
+                                <div class="text-[10px] text-slate-400">{{ loop.index - 1 }} වන ඉලක්කය සොයාගත් පසු විවෘත වේ (Unlocks after #{{ loop.index - 1 }})</div>
+                            </div>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                            🔒 අගුළු දමා ඇත
+                        </span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let html5QrCode = null;
+    let isProcessing = false;
+    let currentStep = {{ current_step }};
+    const totalCount = {{ total_count }};
+
+    const scannedCounter = document.getElementById("scannedCounter");
+    const progressBar = document.getElementById("progressBar");
+    const scanAlertBox = document.getElementById("scanAlertBox");
+    const manualCodeInput = document.getElementById("manualCodeInput");
+    const manualSubmitBtn = document.getElementById("manualSubmitBtn");
+    const startScannerBtn = document.getElementById("startScannerBtn");
+    const stopScannerBtn = document.getElementById("stopScannerBtn");
+    const readerElement = document.getElementById("reader");
+    const scannerPlaceholder = document.getElementById("scannerPlaceholder");
+
+    const activeClueCard = document.getElementById("activeClueCard");
+    const activeBadgeNumber = document.getElementById("activeBadgeNumber");
+    const activeStepText = document.getElementById("activeStepText");
+    const activeClueBody = document.getElementById("activeClueBody");
+    const clearedList = document.getElementById("clearedList");
+
+    // Camera Scanner Initialization
+    startScannerBtn.addEventListener("click", function() {
+        scannerPlaceholder.classList.add("hidden");
+        readerElement.classList.remove("hidden");
+        stopScannerBtn.classList.remove("hidden");
+
+        html5QrCode = new Html5Qrcode("reader");
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        html5QrCode.start(
+            { facingMode: "environment" },
+            config,
+            onScanSuccess,
+            (errorMessage) => { /* ignore per-frame failures */ }
+        ).catch((err) => {
+            console.error("Camera error:", err);
+            alert("කැමරාව ආරම්භ කිරීමට නොහැකි විය. කරුණාකර කැමරා අවසර පරීක්ෂා කරන්න හෝ කේතය අතින් ඇතුල් කරන්න. (Camera access blocked. Use manual entry).");
+            stopScanner();
+        });
+    });
+
+    stopScannerBtn.addEventListener("click", stopScanner);
+
+    function stopScanner() {
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                html5QrCode.clear();
+                scannerPlaceholder.classList.remove("hidden");
+                readerElement.classList.add("hidden");
+                stopScannerBtn.classList.add("hidden");
+            }).catch(err => console.error(err));
+        }
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+        if (isProcessing) return;
+        handleCodeSubmission(decodedText);
+    }
+
+    manualSubmitBtn.addEventListener("click", function() {
+        const code = manualCodeInput.value.trim();
+        if (!code) {
+            alert("කරුණාකර QR කේතය ඇතුල් කරන්න (Please enter QR code).");
+            return;
+        }
+        handleCodeSubmission(code);
+    });
+
+    manualCodeInput.addEventListener("keydown", function(e) {
+        if (e.key === "Enter") {
+            manualSubmitBtn.click();
+        }
+    });
+
+    async function handleCodeSubmission(rawCode) {
+        if (isProcessing) return;
+        isProcessing = true;
+
+        manualSubmitBtn.disabled = true;
+        manualSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+        try {
+            const res = await fetch("{{ url_for('api_hunt_scan') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code: rawCode })
+            });
+            const data = await res.json();
+
+            // Clear input
+            manualCodeInput.value = "";
+
+            displayScanFeedback(data);
+
+            if (data.success) {
+                // Update counter and progress bar
+                scannedCounter.textContent = data.scanned_count;
+                const percent = Math.min(100, Math.round((data.scanned_count / data.total) * 100));
+                progressBar.style.width = percent + "%";
+
+                // Add to cleared list
+                if (data.cleared_checkpoint) {
+                    const clearedDiv = document.createElement("div");
+                    clearedDiv.className = "p-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 flex items-center justify-between text-xs unlock-animation";
+                    clearedDiv.innerHTML = `
+                        <div class="flex items-center space-x-2.5 min-w-0">
+                            <span class="w-6 h-6 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs shrink-0">
+                                <i class="fa-solid fa-check"></i>
+                            </span>
+                            <div class="min-w-0">
+                                <div class="font-bold text-white truncate">ඉලක්ක අංක #${currentStep} සාර්ථකයි</div>
+                                <div class="text-emerald-300 text-[11px] truncate">සොයාගත් ස්ථානය: ${escapeHtml(data.cleared_checkpoint.title)}</div>
+                            </div>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                            සම්පූර්ණයි
+                        </span>
+                    `;
+                    clearedList.appendChild(clearedDiv);
+                }
+
+                // If finished, redirect to victory
+                if (data.status === "completed") {
+                    setTimeout(() => {
+                        window.location.href = data.redirect || "{{ url_for('victory') }}";
+                    }, 1800);
+                    return;
+                }
+
+                // Advance to next sequential clue!
+                if (data.next_checkpoint) {
+                    currentStep = data.current_step;
+                    activeBadgeNumber.textContent = `#${currentStep}`;
+                    activeStepText.textContent = currentStep;
+                    activeClueBody.textContent = data.next_checkpoint.hint;
+
+                    // Play unlock animation
+                    activeClueCard.classList.remove("unlock-animation");
+                    void activeClueCard.offsetWidth; // trigger reflow
+                    activeClueCard.classList.add("unlock-animation");
+
+                    // Remove from locked list
+                    const lockedEl = document.getElementById(`lockedCard-${currentStep}`);
+                    if (lockedEl) lockedEl.remove();
+                }
+            }
+
+        } catch (e) {
+            console.error(e);
+            displayScanFeedback({
+                success: false,
+                status: "error",
+                message: "සම්බන්ධතා දෝෂයකි. කරුණාකර නැවත උත්සාහ කරන්න. (Connection error. Please try again)."
+            });
+        } finally {
+            setTimeout(() => {
+                isProcessing = false;
+                manualSubmitBtn.disabled = false;
+                manualSubmitBtn.innerHTML = '<span>ස්කෑන් කරන්න (Verify)</span> <i class="fa-solid fa-check text-xs"></i>';
+            }, 1200);
+        }
+    }
+
+    function displayScanFeedback(data) {
+        scanAlertBox.classList.remove("hidden", "border-rose-500/40", "bg-rose-950/50", "text-rose-200", "border-emerald-500/40", "bg-emerald-950/50", "text-emerald-200", "shake-animation", "glow-rose", "glow-emerald");
+
+        if (data.success) {
+            // Correct Sequential QR
+            scanAlertBox.classList.add("border-emerald-500/40", "bg-emerald-950/50", "text-emerald-200", "glow-emerald");
+            scanAlertBox.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl shrink-0">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-sm sm:text-base">${data.message}</p>
+                        <p class="text-xs text-emerald-300/80 mt-0.5">ප්‍රගතිය (Progress): ${data.scanned_count} / ${data.total}</p>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Wrong / Trap / Out-of-order QR
+            scanAlertBox.classList.add("border-rose-500/40", "bg-rose-950/50", "text-rose-200", "shake-animation", "glow-rose");
+            scanAlertBox.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-xl shrink-0">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-sm sm:text-base">${data.message}</p>
+                        <p class="text-xs text-rose-300/80 mt-0.5">වත්මන් අංක ${currentStep} ඉඟිය පමණක් සොයාගෙන ස්කෑන් කරන්න. (Follow the active clue in sequence).</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        window.scrollTo({ top: scanAlertBox.offsetTop - 80, behavior: 'smooth' });
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+</script>
+{% endblock %}

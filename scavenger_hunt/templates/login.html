@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Enter Quest - Login{% endblock %}
+{% block container_class %}container-narrow{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-top: 1.5rem;">
+  <div class="card-header" style="text-align: center; display: block;">
+    <div style="font-size: 2.8rem; margin-bottom: 0.5rem;">🕹️</div>
+    <h2>Quest Terminal Access</h2>
+    <p style="color: var(--text-muted); font-size: 0.92rem; margin-top: 0.35rem;">
+      Enter your player handle or identifier to authenticate into the hunt.
+    </p>
+  </div>
+
+  <form method="POST" action="{{ url_for('login') }}">
+    {% if next_url %}
+      <input type="hidden" name="next" value="{{ next_url }}">
+    {% endif %}
+
+    <div class="form-group">
+      <label class="form-label" for="username">Player Handle / Identifier</label>
+      <input 
+        type="text" 
+        id="username" 
+        name="username" 
+        class="form-control" 
+        placeholder="e.g. AgentCipher, TeamNova, Player42" 
+        required 
+        autofocus
+        autocomplete="off"
+      >
+      <small style="color: #64748b; font-size: 0.8rem; display: block; margin-top: 0.4rem;">
+        Your identifier tracks your stage progress, timer, and checkpoint scans.
+      </small>
+    </div>
+
+    <!-- Protocol Briefing -->
+    <div style="background: #090e1a; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+      <div style="font-weight: 700; font-size: 0.85rem; color: #38bdf8; margin-bottom: 0.5rem; text-transform: uppercase;">
+        ⚡ Game Rules & Conditions
+      </div>
+      <ul style="font-size: 0.84rem; color: var(--text-muted); padding-left: 1.25rem; line-height: 1.6;">
+        <li><strong style="color: var(--text-bright);">Stage 1:</strong> 5 specific puzzle questions with a strict <strong style="color: #fbbf24;">2-minute countdown timer</strong>.</li>
+        <li><strong style="color: var(--text-bright);">Strict Elimination:</strong> Even one wrong answer, timer expiration, or abandoning the page instantly <strong style="color: #f87171;">revokes access permanently</strong>.</li>
+        <li><strong style="color: var(--text-bright);">QR Progression:</strong> Clear the quiz to unlock the sequence of physical location QR codes.</li>
+      </ul>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-block btn-lg">
+      <span>🚀 Initialize Quest Session</span>
+    </button>
+  </form>
+</div>
+{% endblock %}

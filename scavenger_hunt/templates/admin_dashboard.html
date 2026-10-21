@@ -1,0 +1,1000 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto my-6 space-y-6">
+    <!-- Admin Top Bar -->
+    <div class="glass-panel p-6 rounded-3xl shadow-xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xl shadow-inner font-bold">
+                <i class="fa-solid fa-gem"></i>
+            </div>
+            <div>
+                <h2 class="text-2xl font-extrabold text-white tracking-tight flex items-center space-x-2">
+                    <span>Treasure Hunt පරිපාලක පුවරුව</span>
+                    <span class="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono font-normal">ADMIN CONTROL</span>
+                </h2>
+                <p class="text-xs text-amber-300/80 font-medium">Live Contestants & Scavenger Hunt Management Center</p>
+            </div>
+        </div>
+
+        <div class="flex items-center flex-wrap gap-2.5">
+            <div class="flex items-center space-x-2 bg-emerald-950/40 text-emerald-300 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="font-semibold">Live Real-time Sync Active</span>
+            </div>
+            <a href="{{ url_for('admin_print_qr') }}" target="_blank"
+                class="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition-all">
+                <i class="fa-solid fa-print"></i>
+                <span>Print QR Codes</span>
+            </a>
+            <a href="{{ url_for('admin_logout') }}"
+                class="px-3 py-1.5 rounded-xl bg-rose-950/30 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40 text-xs font-semibold flex items-center space-x-1.5 transition-all">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span>Logout</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Live Statistics Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div class="glass-panel p-4 rounded-2xl border border-slate-800 text-left">
+            <span class="text-xs text-slate-400 font-medium">මුළු තරඟකරුවන් (Total)</span>
+            <div class="text-2xl font-black text-white mt-1" id="statTotal">{{ stats.total }}</div>
+        </div>
+        <div class="glass-panel p-4 rounded-2xl border border-amber-500/30 bg-amber-950/10 text-left relative overflow-hidden">
+            <span class="text-xs text-amber-300 font-semibold flex items-center space-x-1">
+                <i class="fa-solid fa-hourglass-half text-amber-400 text-xs"></i>
+                <span>අනුමැතිය අපේක්ෂිත (Waiting)</span>
+            </span>
+            <div class="text-2xl font-black text-amber-400 mt-1" id="statWaiting">{{ stats.waiting }}</div>
+            <div class="absolute -right-2 -bottom-2 opacity-10 text-4xl text-amber-400">
+                <i class="fa-solid fa-clock"></i>
+            </div>
+        </div>
+        <div class="glass-panel p-4 rounded-2xl border border-indigo-500/30 bg-indigo-950/10 text-left">
+            <span class="text-xs text-indigo-300 font-medium">ක්‍රියාකාරී තරඟකරුවන් (Active)</span>
+            <div class="text-2xl font-black text-indigo-400 mt-1" id="statActive">{{ stats.active }}</div>
+        </div>
+        <div class="glass-panel p-4 rounded-2xl border border-emerald-500/30 bg-emerald-950/10 text-left">
+            <span class="text-xs text-emerald-300 font-medium">ජයග්‍රාහකයින් (Winners)</span>
+            <div class="text-2xl font-black text-emerald-400 mt-1" id="statCompleted">{{ stats.completed }}</div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center space-x-2 border-b border-slate-800 pb-2 overflow-x-auto text-xs font-semibold">
+        <button onclick="switchTab('tab-users')" id="btn-tab-users"
+            class="tab-btn px-4 py-2.5 rounded-xl bg-brand-600 text-white flex items-center space-x-2 transition-all">
+            <i class="fa-solid fa-users"></i>
+            <span>සජීවී තරඟකරු ලැයිස්තුව (Contestants)</span>
+            <span id="badgeWaitingCount" class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-bold {% if stats.waiting == 0 %}hidden{% endif %}">
+                {{ stats.waiting }}
+            </span>
+        </button>
+        <button onclick="switchTab('tab-terms')" id="btn-tab-terms"
+            class="tab-btn px-4 py-2.5 rounded-xl bg-slate-900 text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2 transition-all">
+            <i class="fa-solid fa-file-lines"></i>
+            <span>නීති සහ කොන්දේසි (T&C)</span>
+        </button>
+        <button onclick="switchTab('tab-questions')" id="btn-tab-questions"
+            class="tab-btn px-4 py-2.5 rounded-xl bg-slate-900 text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2 transition-all">
+            <i class="fa-solid fa-circle-question"></i>
+            <span>ප්‍රශ්නාවලි බැංකුව (Questions Pool)</span>
+            <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded-full text-slate-400">{{ questions|length }}</span>
+        </button>
+        <button onclick="switchTab('tab-qrcodes')" id="btn-tab-qrcodes"
+            class="tab-btn px-4 py-2.5 rounded-xl bg-slate-900 text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2 transition-all">
+            <i class="fa-solid fa-qrcode"></i>
+            <span>QR කේත සහ උගුල් (QR & Traps)</span>
+            <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded-full text-slate-400">{{ qr_codes|length }}</span>
+        </button>
+        <button onclick="switchTab('tab-settings')" id="btn-tab-settings"
+            class="tab-btn px-4 py-2.5 rounded-xl bg-slate-900 text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2 transition-all">
+            <i class="fa-solid fa-gear"></i>
+            <span>Settings / Master PIN</span>
+        </button>
+    </div>
+
+    <!-- TAB 1: CONTESTANTS (LIVE) -->
+    <div id="tab-users" class="tab-content space-y-4">
+        <!-- Live Alert Banner -->
+        <div id="newWaitingAlert" class="hidden p-4 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs sm:text-sm flex items-center justify-between animate-bounce">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-bell text-amber-400 text-lg"></i>
+                <span class="font-bold">නව තරඟකරුවෙකු අනුමැතිය අපේක්ෂාවෙන් රැඳී සිටියි! (New contestant waiting for approval!)</span>
+            </div>
+            <button onclick="this.parentElement.classList.add('hidden')" class="text-amber-300 hover:text-white font-bold">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="glass-panel rounded-3xl border border-slate-800 overflow-hidden shadow-xl">
+            <div class="p-4 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-users text-amber-400"></i>
+                        <span>සජීවී තරඟකරු ලැයිස්තුව (Live Contestant Registry)</span>
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                        තරඟකරු මෙතෙක් කළ සියලු දේ (ප්‍රශ්න වල හරි/වැරදි, ස්කෑන් කළ QR, වැරදුණු QR) සජීවීව පෙන්වයි.
+                    </p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="userSearchInput" onkeyup="filterUsers()" placeholder="Search name, NIC, or WhatsApp..."
+                        class="px-3 py-1.5 text-xs rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brand-500">
+                </div>
+            </div>
+
+            <!-- Users Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-900/80 text-slate-400 uppercase font-bold tracking-wider border-b border-slate-800">
+                        <tr>
+                            <th class="py-3 px-3">#ID</th>
+                            <th class="py-3 px-3">තරඟකරු (Contestant)</th>
+                            <th class="py-3 px-3">හැඳුනුම්පත් අංකය</th>
+                            <th class="py-3 px-3">WhatsApp</th>
+                            <th class="py-3 px-3">තත්ත්වය (Status)</th>
+                            <th class="py-3 px-3">අවසන් ක්‍රියාකාරකම (Latest Activity)</th>
+                            <th class="py-3 px-3 text-right">ක්‍රියාමාර්ග (Actions)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody" class="divide-y divide-slate-800/80">
+                        <!-- Loaded dynamically via JavaScript polling -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: TERMS AND CONDITIONS -->
+    <div id="tab-terms" class="tab-content hidden space-y-4">
+        <div class="glass-panel p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4">
+            <div>
+                <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                    <i class="fa-solid fa-file-contract text-brand-400"></i>
+                    <span>Treasure Hunt නීති සහ කොන්දේසි කළමනාකරණය (Terms & Conditions)</span>
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    Admin විසින් අනුමත කළ පසු තරඟකරුට ප්‍රදර්ශනය වන නීති සහ කොන්දේසි මෙතැනින් සංස්කරණය කළ හැක.
+                </p>
+            </div>
+
+            <textarea id="termsInput" rows="12"
+                class="w-full p-4 rounded-2xl bg-slate-900 border border-slate-700 text-white text-xs sm:text-sm font-sans leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-500">{{ terms }}</textarea>
+
+            <div class="flex justify-end">
+                <button type="button" onclick="saveTerms()" id="btnSaveTerms"
+                    class="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-lg shadow-brand-600/30 transition-all flex items-center space-x-2">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span>නීති සහ කොන්දේසි සුරකින්න (Save Terms)</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: QUESTIONS BANK -->
+    <div id="tab-questions" class="tab-content hidden space-y-6">
+        <!-- Add Question Card -->
+        <div class="glass-panel p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4">
+            <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                <i class="fa-solid fa-plus-circle text-brand-400"></i>
+                <span>නව ප්‍රශ්නයක් ඇතුල් කරන්න (Add New Question to Pool)</span>
+            </h3>
+            <p class="text-xs text-slate-400">
+                පද්ධතිය මගින් මෙම ප්‍රශ්න බැංකුවෙන් ඕනෑම ප්‍රශ්න 5ක් අහඹු ලෙස (randomized) තරඟකරුට ලබාදේ.
+            </p>
+
+            <form id="addQuestionForm" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">ප්‍රශ්නය (Question Text)</label>
+                    <input type="text" id="qText" required placeholder="e.g. ශ්‍රී ලංකාවේ අගනුවර කුමක්ද? (What is the capital of Sri Lanka?)"
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:ring-2 focus:ring-brand-500">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Option A</label>
+                        <input type="text" id="optA" required placeholder="Option A text"
+                            class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Option B</label>
+                        <input type="text" id="optB" required placeholder="Option B text"
+                            class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Option C</label>
+                        <input type="text" id="optC" required placeholder="Option C text"
+                            class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Option D</label>
+                        <input type="text" id="optD" required placeholder="Option D text"
+                            class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs">
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+                    <div class="flex items-center space-x-3">
+                        <label class="text-xs font-semibold text-slate-300">නිවැරදි පිළිතුර (Correct Option):</label>
+                        <select id="correctOpt" required class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-bold">
+                            <option value="A">Option A</option>
+                            <option value="B">Option B</option>
+                            <option value="C">Option C</option>
+                            <option value="D">Option D</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" id="btnAddQ"
+                        class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                        <span>ප්‍රශ්නය ඇතුල් කරන්න (Add Question)</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Questions List -->
+        <div class="glass-panel p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4">
+            <h3 class="text-base font-bold text-white flex items-center justify-between">
+                <span>දැනට පවතින ප්‍රශ්න ලැයිස්තුව (Current Question Pool)</span>
+                <span class="text-xs text-brand-300 font-mono">{{ questions|length }} Questions</span>
+            </h3>
+
+            <div class="space-y-3">
+                {% for q in questions %}
+                <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-slate-700 transition-all">
+                    <div class="space-y-1.5 max-w-2xl">
+                        <div class="flex items-center space-x-2">
+                            <span class="px-2 py-0.5 rounded-md bg-brand-950/60 text-brand-300 border border-brand-500/30 font-bold text-[10px]">#{{ q.id }}</span>
+                            <span class="font-bold text-white text-xs sm:text-sm">{{ q.question }}</span>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-300 mt-2">
+                            <span class="{% if q.correct_option == 'A' %}text-emerald-400 font-bold{% endif %}">A: {{ q.option_a }}</span>
+                            <span class="{% if q.correct_option == 'B' %}text-emerald-400 font-bold{% endif %}">B: {{ q.option_b }}</span>
+                            <span class="{% if q.correct_option == 'C' %}text-emerald-400 font-bold{% endif %}">C: {{ q.option_c }}</span>
+                            <span class="{% if q.correct_option == 'D' %}text-emerald-400 font-bold{% endif %}">D: {{ q.option_d }}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400">
+                            නිවැරදි පිළිතුර: <span class="text-emerald-400 font-bold font-mono">{{ q.correct_option }}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2 shrink-0">
+                        <button onclick="deleteQuestion({{ q.id }})"
+                            class="px-2.5 py-1.5 rounded-lg bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 border border-rose-800/40 text-xs transition-all"
+                            title="Delete question">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: QR CODES & TRAPS -->
+    <div id="tab-qrcodes" class="tab-content hidden space-y-6">
+        <!-- Add QR Code Form -->
+        <div class="glass-panel p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4">
+            <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                <i class="fa-solid fa-qrcode text-brand-400"></i>
+                <span>නව QR කේතයක් / උගුලක් ඇතුල් කරන්න (Add Target or Trap QR)</span>
+            </h3>
+            <p class="text-xs text-slate-400">
+                වලංගු ඉලක්ක (Valid Targets) වලින් 5ක් අහඹු ලෙස ලැබෙන අතර, උගුල් (Trap QR) ස්කෑන් කළහොත් වැරදියි (Wrong QR) ලෙස අනතුරු අඟවයි.
+            </p>
+
+            <form id="addQRForm" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">කේත හැඳුනුම්කරු (Code Identifier)</label>
+                        <input type="text" id="qrCode" required placeholder="e.g. TARGET-CHESS-10 or TRAP-FAKE-01"
+                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono uppercase focus:ring-2 focus:ring-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">මාතෘකාව / ස්ථානය (Title / Checkpoint Name)</label>
+                        <input type="text" id="qrTitle" required placeholder="e.g. චෙස් ක්‍රීඩාගාරය (Chess Hall)"
+                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">ඉඟිය / ස්ථාන විස්තරය (Clue / Hint for Location)</label>
+                    <input type="text" id="qrHint" placeholder="e.g. ක්‍රීඩාගාරයේ ප්‍රධාන මේසය අසල..."
+                        class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs">
+                </div>
+
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="radio" name="is_trap_radio" value="0" checked class="text-brand-600 bg-slate-900 border-slate-700">
+                            <span class="text-xs text-emerald-400 font-bold">🟢 නිවැරදි ඉලක්කයක් (Valid Target QR)</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="radio" name="is_trap_radio" value="1" class="text-rose-600 bg-slate-900 border-slate-700">
+                            <span class="text-xs text-rose-400 font-bold">🔴 උගුලක් / වැරදි QR (Trap / Wrong QR)</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" id="btnAddQR"
+                        class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                        <span>QR එකතු කරන්න (Add QR Code)</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- QR Codes List -->
+        <div class="glass-panel p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                    <span>පද්ධතියේ ඇති සියලු QR කේත (All System QR Codes)</span>
+                </h3>
+                <a href="{{ url_for('admin_print_qr') }}" target="_blank" class="text-xs text-brand-300 hover:text-brand-200 flex items-center space-x-1">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    <span>Printable Sheet View</span>
+                </a>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {% for qr in qr_codes %}
+                <div class="p-4 rounded-2xl border transition-all flex items-center justify-between gap-3
+                    {% if qr.is_trap == 1 %} bg-rose-950/20 border-rose-500/30 hover:border-rose-500/50
+                    {% else %} bg-slate-900/60 border-slate-800 hover:border-slate-700 {% endif %}">
+                    <div class="flex items-center space-x-3 min-w-0">
+                        <img src="{{ url_for('api_qr_image', code_str=qr.code) }}" alt="QR" class="w-14 h-14 rounded-lg bg-white p-1 shrink-0">
+                        <div class="min-w-0">
+                            <div class="flex items-center space-x-2">
+                                <span class="font-mono font-bold text-xs text-white uppercase truncate">{{ qr.code }}</span>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0
+                                    {% if qr.is_trap == 1 %} bg-rose-500/20 text-rose-300 border border-rose-500/30
+                                    {% else %} bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 {% endif %}">
+                                    {{ '⚠️ TRAP' if qr.is_trap == 1 else 'TARGET' }}
+                                </span>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-300 truncate mt-0.5">{{ qr.title }}</p>
+                            {% if qr.hint %}
+                            <p class="text-[11px] text-slate-500 truncate mt-0.5">{{ qr.hint }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-1.5 shrink-0">
+                        <button onclick="deleteQRCode({{ qr.id }})"
+                            class="px-2.5 py-1.5 rounded-lg bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 border border-rose-800/40 text-xs transition-all"
+                            title="Delete QR">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 5: SETTINGS & MASTER PIN -->
+    <div id="tab-settings" class="tab-content hidden space-y-6">
+        <div class="glass-panel p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4 max-w-lg">
+            <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                <i class="fa-solid fa-key text-brand-400"></i>
+                <span>Master PIN අංකය වෙනස් කිරීම (Change Master PIN)</span>
+            </h3>
+            <p class="text-xs text-slate-400">
+                Admin Panel වෙත පිවිසීමට භාවිතා කරන Master PIN අංකය මෙතැනින් යාවත්කාලීන කළ හැක.
+            </p>
+
+            <form id="changePinForm" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">වත්මන් Master PIN (Current PIN)</label>
+                    <input type="text" readonly value="{{ master_pin }}"
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/50 border border-slate-800 text-slate-400 text-xs font-mono">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">නව Master PIN (New PIN - 4+ digits)</label>
+                    <input type="password" id="newPinInput" required minlength="4" placeholder="Enter new PIN"
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:ring-2 focus:ring-brand-500">
+                </div>
+
+                <button type="submit" id="btnUpdatePin"
+                    class="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md transition-all flex items-center space-x-2">
+                    <i class="fa-solid fa-check"></i>
+                    <span>නව PIN අංකය සුරකින්න (Save PIN)</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<!-- DETAILED CONTESTANT ACTIVITY AUDIT MODAL -->
+<div id="activityModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5">
+    <div class="glass-panel bg-slate-900 border border-slate-700 w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        
+        <!-- Modal Header -->
+        <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-2xl bg-brand-600/20 text-brand-400 border border-brand-500/30 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-timeline"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                        <span id="modalUserName">Contestant</span>
+                        <span id="modalUserStatusBadge"></span>
+                    </h3>
+                    <p class="text-xs text-slate-400 font-mono" id="modalUserDetails"></p>
+                </div>
+            </div>
+            <button onclick="closeActivityModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-all">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Modal Body (Scrollable) -->
+        <div class="p-5 space-y-6 overflow-y-auto text-xs sm:text-sm">
+            
+            <!-- SECTION 1: QUIZ ANALYSIS (QUESTION BY QUESTION) -->
+            <div class="space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h4 class="font-bold text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-brain text-purple-400"></i>
+                        <span>1. ප්‍රශ්නාවලිය විග්‍රහය (Quiz Question-by-Question Breakdown)</span>
+                    </h4>
+                    <span id="modalQuizScoreBadge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300"></span>
+                </div>
+
+                <div id="modalQuizBreakdownContainer" class="space-y-2.5">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- SECTION 2: QR TARGETS & SCAN PROGRESS -->
+            <div class="space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h4 class="font-bold text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-crosshairs text-emerald-400"></i>
+                        <span>2. QR ඉලක්ක සහ ප්‍රගතිය (5 Checkpoints Status)</span>
+                    </h4>
+                    <span id="modalQRProgressBadge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"></span>
+                </div>
+
+                <div id="modalQRBreakdownContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- SECTION 3: LIVE ACTIVITY TIMELINE -->
+            <div class="space-y-3">
+                <div class="border-b border-slate-800 pb-2">
+                    <h4 class="font-bold text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-clock-rotate-left text-amber-400"></i>
+                        <span>3. සජීවී ක්‍රියාකාරකම් කාලරේඛාව (Real-Time Activity Stream)</span>
+                    </h4>
+                </div>
+
+                <div id="modalTimelineContainer" class="relative pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
+            <span class="text-[11px] text-slate-400">
+                <i class="fa-solid fa-arrows-rotate mr-1"></i> තොරතුරු සජීවීව යාවත්කාලීන වේ (Real-time live audit)
+            </span>
+            <button onclick="closeActivityModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all">
+                වසන්න (Close)
+            </button>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let currentUsersList = [];
+    let previousWaitingCount = {{ stats.waiting }};
+    let activeModalUserId = null;
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('bg-brand-600', 'text-white');
+            btn.classList.add('bg-slate-900', 'text-slate-300');
+        });
+
+        document.getElementById(tabId).classList.remove('hidden');
+        const activeBtn = document.getElementById('btn-' + tabId);
+        if (activeBtn) {
+            activeBtn.classList.remove('bg-slate-900', 'text-slate-300');
+            activeBtn.classList.add('bg-brand-600', 'text-white');
+        }
+    }
+
+    // Live Polling every 2 seconds
+    async function fetchLiveAdminData() {
+        try {
+            const res = await fetch("{{ url_for('api_admin_users') }}");
+            const data = await res.json();
+            if (data.success) {
+                // Update stats
+                document.getElementById('statTotal').textContent = data.stats.total;
+                document.getElementById('statWaiting').textContent = data.stats.waiting;
+                document.getElementById('statActive').textContent = data.stats.active;
+                document.getElementById('statCompleted').textContent = data.stats.completed;
+
+                const badge = document.getElementById('badgeWaitingCount');
+                if (data.stats.waiting > 0) {
+                    badge.textContent = data.stats.waiting;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+
+                // If new waiting users arrived, show banner
+                if (data.stats.waiting > previousWaitingCount) {
+                    document.getElementById('newWaitingAlert').classList.remove('hidden');
+                }
+                previousWaitingCount = data.stats.waiting;
+
+                currentUsersList = data.users;
+                renderUsersTable(currentUsersList);
+
+                // If modal is open for a user, refresh modal data in real-time!
+                if (activeModalUserId) {
+                    refreshModalData(activeModalUserId);
+                }
+            }
+        } catch (e) {
+            console.error("Live sync error:", e);
+        }
+    }
+
+    function renderUsersTable(users) {
+        const tbody = document.getElementById('usersTableBody');
+        if (!users || users.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-500">තරඟකරුවන් කිසිවෙකු ලියාපදිංචි වී නොමැත (No contestants yet).</td></tr>`;
+            return;
+        }
+
+        const searchTerm = document.getElementById('userSearchInput').value.toLowerCase();
+
+        let html = '';
+        users.forEach(u => {
+            if (searchTerm) {
+                const matchName = (u.username || '').toLowerCase().includes(searchTerm);
+                const matchID = (u.id_number || '').toLowerCase().includes(searchTerm);
+                const matchPhone = (u.whatsapp || '').toLowerCase().includes(searchTerm);
+                if (!matchName && !matchID && !matchPhone) return;
+            }
+
+            // Status badge logic
+            let statusBadge = '';
+            let isWaiting = (u.status === 'waiting_approval');
+
+            if (u.status === 'waiting_approval') {
+                statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse">⏳ අනුමැතිය අපේක්ෂිත</span>';
+            } else if (u.status === 'approved') {
+                statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Terms බැලීම</span>';
+            } else if (u.status === 'terms_accepted') {
+                statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">🧠 ප්‍රශ්නාවලියේ</span>';
+            } else if (u.status === 'quiz_passed') {
+                statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">🎯 QR Hunt (' + (u.scanned_count || 0) + '/5)</span>';
+            } else if (u.status === 'completed') {
+                statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🏆 ජයග්‍රාහකයා</span>';
+            } else if (u.status === 'rejected') {
+                statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">ප්‍රතික්ෂේපිත</span>';
+            }
+
+            // Activity badge style
+            let actBadgeClass = 'text-slate-300 bg-slate-900 border-slate-800';
+            let actIcon = 'fa-regular fa-clock';
+            const actType = u.latest_activity_type || '';
+
+            if (actType === 'quiz_attempt') {
+                actBadgeClass = 'text-purple-300 bg-purple-950/40 border-purple-500/30';
+                actIcon = 'fa-solid fa-brain';
+            } else if (actType === 'qr_scan_success') {
+                actBadgeClass = 'text-emerald-300 bg-emerald-950/40 border-emerald-500/30';
+                actIcon = 'fa-solid fa-circle-check';
+            } else if (actType.includes('trap') || actType.includes('wrong')) {
+                actBadgeClass = 'text-rose-300 bg-rose-950/40 border-rose-500/30';
+                actIcon = 'fa-solid fa-triangle-exclamation';
+            } else if (actType === 'completed') {
+                actBadgeClass = 'text-amber-300 bg-amber-950/40 border-amber-500/30';
+                actIcon = 'fa-solid fa-trophy';
+            }
+
+            const latestActText = u.latest_activity || 'ලියාපදිංචි විය';
+
+            html += `
+                <tr class="hover:bg-slate-900/40 transition-colors ${isWaiting ? 'bg-amber-950/20' : ''}">
+                    <td class="py-3 px-3 font-mono text-slate-400">#${u.id}</td>
+                    <td class="py-3 px-3 font-bold text-white">
+                        <div class="flex items-center space-x-1.5">
+                            <span>${escapeHtml(u.username)}</span>
+                            <span class="text-[9px] px-1.5 py-0.2 rounded ${u.age_category === 'under_18' ? 'bg-sky-950 text-sky-400 border border-sky-800' : 'bg-purple-950 text-purple-400 border border-purple-800'}">
+                                ${u.age_category === 'under_18' ? '<18' : '18+'}
+                            </span>
+                        </div>
+                        <div class="text-[10px] text-slate-500 font-normal">${u.created_at || ''}</div>
+                    </td>
+                    <td class="py-3 px-3 font-mono text-indigo-300">${escapeHtml(u.id_number)}</td>
+                    <td class="py-3 px-3 font-mono text-emerald-400">
+                        <a href="https://wa.me/${escapeHtml(u.whatsapp).replace(/[^0-9]/g, '')}" target="_blank" class="hover:underline flex items-center space-x-1">
+                            <i class="fa-brands fa-whatsapp"></i>
+                            <span>${escapeHtml(u.whatsapp)}</span>
+                        </a>
+                    </td>
+                    <td class="py-3 px-3">${statusBadge}</td>
+                    <td class="py-3 px-3 max-w-xs">
+                        <div class="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl border text-[11px] ${actBadgeClass}">
+                            <i class="${actIcon} text-xs"></i>
+                            <span class="truncate max-w-[200px]" title="${escapeHtml(latestActText)}">${escapeHtml(latestActText)}</span>
+                        </div>
+                    </td>
+                    <td class="py-3 px-3 text-right space-x-1 whitespace-nowrap">
+                        <button onclick="viewUserActivity(${u.id})" class="px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/40 font-bold text-[11px] shadow-sm transition-all" title="View Full Activity & Quiz Breakdown">
+                            <i class="fa-solid fa-eye mr-1"></i> Activity
+                        </button>
+                        ${isWaiting ? `
+                            <button onclick="approveUser(${u.id})" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] shadow-sm transition-all" title="Accept Contestant">
+                                <i class="fa-solid fa-check mr-1"></i> Accept
+                            </button>
+                            <button onclick="rejectUser(${u.id})" class="px-1.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-950 text-rose-400 font-bold text-[11px] border border-slate-700 transition-all" title="Decline">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        ` : ''}
+                        <button onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')" class="px-2 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-[11px] transition-all" title="Delete User Permanently">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    function filterUsers() {
+        renderUsersTable(currentUsersList);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    // Modal Activity Drill-Down
+    async function viewUserActivity(userId) {
+        activeModalUserId = userId;
+        document.getElementById('activityModal').classList.remove('hidden');
+        await refreshModalData(userId);
+    }
+
+    function closeActivityModal() {
+        activeModalUserId = null;
+        document.getElementById('activityModal').classList.add('hidden');
+    }
+
+    async function refreshModalData(userId) {
+        try {
+            const res = await fetch(`/api/admin/user/${userId}/details`);
+            const data = await res.json();
+            if (!data.success) return;
+
+            const d = data.details;
+            const u = d.user;
+
+            document.getElementById('modalUserName').textContent = u.username;
+            document.getElementById('modalUserDetails').textContent = `ID: ${u.id_number} • WhatsApp: ${u.whatsapp} • Age: ${u.age_category === 'under_18' ? 'Under 18' : '18+'}`;
+
+            // Status badge
+            const statusEl = document.getElementById('modalUserStatusBadge');
+            statusEl.className = "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase " +
+                (u.status === 'completed' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                 u.status === 'waiting_approval' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30');
+            statusEl.textContent = u.status;
+
+            // Quiz Breakdown
+            const quizContainer = document.getElementById('modalQuizBreakdownContainer');
+            const quizScoreBadge = document.getElementById('modalQuizScoreBadge');
+
+            if (d.quiz_breakdown && d.quiz_breakdown.length > 0) {
+                const correctCount = d.quiz_breakdown.filter(q => q.is_correct).length;
+                quizScoreBadge.textContent = `Score: ${correctCount} / ${d.quiz_breakdown.length}`;
+                quizScoreBadge.className = correctCount === d.quiz_breakdown.length ?
+                    "text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" :
+                    "text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30";
+
+                let qHtml = '';
+                d.quiz_breakdown.forEach(q => {
+                    const isCorr = q.is_correct;
+                    const userAns = q.user_answer || 'පිළිතුරු දී නැත (Not answered)';
+                    qHtml += `
+                        <div class="p-3 rounded-xl border ${isCorr ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-rose-950/20 border-rose-500/30'} space-y-1">
+                            <div class="flex items-start justify-between gap-2">
+                                <span class="font-bold text-white">#${q.number}. ${escapeHtml(q.question)}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${isCorr ? 'bg-emerald-500 text-slate-950' : 'bg-rose-500 text-white'}">
+                                    ${isCorr ? '✅ හරි (Correct)' : '❌ වැරදියි (Wrong)'}
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                                <div class="text-slate-300">
+                                    තරඟකරුගේ පිළිතුර: <span class="font-bold font-mono ${isCorr ? 'text-emerald-400' : 'text-rose-400'}">${escapeHtml(userAns)}</span>
+                                </div>
+                                <div class="text-slate-400 text-right">
+                                    නිවැරදි පිළිතුර: <span class="font-bold font-mono text-emerald-400">${q.correct_option}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                quizContainer.innerHTML = qHtml;
+            } else {
+                quizScoreBadge.textContent = "තවම පිරවා නැත";
+                quizContainer.innerHTML = `<div class="p-3 rounded-xl bg-slate-950/40 text-slate-400 text-center text-xs">තරඟකරු තවමත් ප්‍රශ්නාවලිය ආරම්භ කර නොමැත (Quiz not started yet).</div>`;
+            }
+
+            // QR Breakdown
+            const qrContainer = document.getElementById('modalQRBreakdownContainer');
+            const qrProgressBadge = document.getElementById('modalQRProgressBadge');
+            qrProgressBadge.textContent = `${d.scanned_count} / ${d.total_targets} සොයාගෙන ඇත`;
+
+            if (d.qr_breakdown && d.qr_breakdown.length > 0) {
+                let qrHtml = '';
+                d.qr_breakdown.forEach(qr => {
+                    qrHtml += `
+                        <div class="p-2.5 rounded-xl border flex items-center justify-between ${qr.is_scanned ? 'bg-emerald-950/30 border-emerald-500/40' : 'bg-slate-950/40 border-slate-800'}">
+                            <div class="min-w-0">
+                                <div class="font-bold text-white truncate text-xs">${escapeHtml(qr.title)}</div>
+                                <div class="font-mono text-[10px] text-slate-400 truncate">${escapeHtml(qr.code)}</div>
+                            </div>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${qr.is_scanned ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-500'}">
+                                ${qr.is_scanned ? '✅ ස්කෑන් කළා' : 'සොයමින් පවතී'}
+                            </span>
+                        </div>
+                    `;
+                });
+                qrContainer.innerHTML = qrHtml;
+            }
+
+            // Timeline
+            const timelineContainer = document.getElementById('modalTimelineContainer');
+            if (d.activities && d.activities.length > 0) {
+                let tHtml = '';
+                d.activities.forEach(act => {
+                    let dotColor = 'bg-slate-600';
+                    let icon = 'fa-circle-dot';
+                    if (act.action_type === 'quiz_attempt') {
+                        dotColor = 'bg-purple-500 text-purple-400';
+                        icon = 'fa-brain';
+                    } else if (act.action_type === 'qr_scan_success' || act.action_type === 'completed') {
+                        dotColor = 'bg-emerald-500 text-emerald-400';
+                        icon = 'fa-check';
+                    } else if (act.action_type.includes('trap') || act.action_type.includes('wrong')) {
+                        dotColor = 'bg-rose-500 text-rose-400';
+                        icon = 'fa-triangle-exclamation';
+                    } else if (act.action_type === 'approved') {
+                        dotColor = 'bg-indigo-500 text-indigo-400';
+                        icon = 'fa-shield-halved';
+                    }
+
+                    tHtml += `
+                        <div class="relative flex items-start space-x-3">
+                            <div class="w-4 h-4 rounded-full ${dotColor} absolute -left-6 top-1 border-2 border-slate-900 shadow"></div>
+                            <div class="flex-1 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800/80">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-white text-xs">${escapeHtml(act.title)}</span>
+                                    <span class="text-[10px] font-mono text-slate-400">${act.created_at || ''}</span>
+                                </div>
+                                ${act.description ? `<p class="text-[11px] text-slate-400 mt-1">${escapeHtml(act.description)}</p>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                timelineContainer.innerHTML = tHtml;
+            } else {
+                timelineContainer.innerHTML = `<div class="text-slate-500 text-xs py-2">ක්‍රියාකාරකම් කිසිවක් සටහන් වී නොමැත.</div>`;
+            }
+
+        } catch (e) {
+            console.error("Modal fetch error:", e);
+        }
+    }
+
+    // Actions
+    async function approveUser(userId) {
+        try {
+            const res = await fetch(`/api/admin/user/${userId}/approve`, { method: "POST" });
+            const data = await res.json();
+            if (data.success) {
+                fetchLiveAdminData();
+            }
+        } catch (e) {
+            alert("Approval failed: " + e);
+        }
+    }
+
+    async function rejectUser(userId) {
+        try {
+            const res = await fetch(`/api/admin/user/${userId}/reject`, { method: "POST" });
+            const data = await res.json();
+            if (data.success) {
+                fetchLiveAdminData();
+            }
+        } catch (e) {
+            alert("Action failed: " + e);
+        }
+    }
+
+    async function deleteUser(userId, userName) {
+        if (!confirm(`ඔබට '${userName}' (ID #${userId}) තරඟකරු පද්ධතියෙන් සදහටම ඉවත් කිරීමට අවශ්‍ය බව තහවුරු කරන්නද? (Delete participant permanently?)`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/admin/user/${userId}/delete`, { method: "POST" });
+            const data = await res.json();
+            if (data.success) {
+                fetchLiveAdminData();
+            }
+        } catch (e) {
+            alert("Delete failed: " + e);
+        }
+    }
+
+    async function saveTerms() {
+        const terms = document.getElementById('termsInput').value.trim();
+        const btn = document.getElementById('btnSaveTerms');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i> සුරකිමින්...';
+
+        try {
+            const res = await fetch("{{ url_for('api_admin_save_terms') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ terms: terms })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert("නීති සහ කොන්දේසි සාර්ථකව සුරකින ලදී! (Terms saved successfully)");
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (e) {
+            alert("Error saving terms: " + e);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> <span>නීති සහ කොන්දේසි සුරකින්න (Save Terms)</span>';
+        }
+    }
+
+    // Add Question
+    document.getElementById('addQuestionForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const payload = {
+            question: document.getElementById('qText').value.trim(),
+            option_a: document.getElementById('optA').value.trim(),
+            option_b: document.getElementById('optB').value.trim(),
+            option_c: document.getElementById('optC').value.trim(),
+            option_d: document.getElementById('optD').value.trim(),
+            correct_option: document.getElementById('correctOpt').value
+        };
+
+        const btn = document.getElementById('btnAddQ');
+        btn.disabled = true;
+
+        try {
+            const res = await fetch("{{ url_for('api_admin_add_question') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (e) {
+            alert("Error: " + e);
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    async function deleteQuestion(qid) {
+        if (!confirm("මෙම ප්‍රශ්නය ඉවත් කිරීමට අවශ්‍යද? (Delete question?)")) return;
+        try {
+            const res = await fetch(`/api/admin/questions/${qid}/delete`, { method: "POST" });
+            const data = await res.json();
+            if (data.success) window.location.reload();
+        } catch (e) {
+            alert("Error: " + e);
+        }
+    }
+
+    // Add QR Code
+    document.getElementById('addQRForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const isTrapVal = document.querySelector('input[name="is_trap_radio"]:checked').value;
+        const payload = {
+            code: document.getElementById('qrCode').value.trim(),
+            title: document.getElementById('qrTitle').value.trim(),
+            hint: document.getElementById('qrHint').value.trim(),
+            is_trap: parseInt(isTrapVal)
+        };
+
+        const btn = document.getElementById('btnAddQR');
+        btn.disabled = true;
+
+        try {
+            const res = await fetch("{{ url_for('api_admin_add_qrcode') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (e) {
+            alert("Error: " + e);
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    async function deleteQRCode(qrid) {
+        if (!confirm("මෙම QR කේතය ඉවත් කිරීමට අවශ්‍යද? (Delete QR code?)")) return;
+        try {
+            const res = await fetch(`/api/admin/qrcodes/${qrid}/delete`, { method: "POST" });
+            const data = await res.json();
+            if (data.success) window.location.reload();
+        } catch (e) {
+            alert("Error: " + e);
+        }
+    }
+
+    // Change PIN
+    document.getElementById('changePinForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const newPin = document.getElementById('newPinInput').value.trim();
+        try {
+            const res = await fetch("{{ url_for('api_admin_change_pin') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pin: newPin })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert("Master PIN එක සාර්ථකව යාවත්කාලීන විය! (PIN updated)");
+                window.location.reload();
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (e) {
+            alert("Error: " + e);
+        }
+    });
+
+    // Start live loop on page load
+    window.addEventListener('DOMContentLoaded', () => {
+        fetchLiveAdminData();
+        setInterval(fetchLiveAdminData, 2000);
+    });
+</script>
+{% endblock %}

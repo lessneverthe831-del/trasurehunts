@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Stage Progression - {{ checkpoint.title }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 2rem;">
+  <!-- Stage Stepper -->
+  <div class="progress-stepper">
+    <!-- Stage 1: Quiz -->
+    <div class="step-node completed">
+      <div class="step-circle">✓</div>
+      <div class="step-label">Stage 1: Quiz</div>
+    </div>
+
+    <!-- Checkpoint Stages -->
+    {% for cp in all_checkpoints %}
+      {% set is_done = user.current_stage > cp.stage or user.status == 'completed' %}
+      {% set is_active = user.current_stage == cp.stage and user.status != 'completed' %}
+      
+      <div class="step-node {% if is_done %}completed{% elif is_active %}current{% endif %}">
+        <div class="step-circle">
+          {% if is_done %}✓{% else %}{{ loop.index }}{% endif %}
+        </div>
+        <div class="step-label">
+          {% if cp.is_final %}Final Vault{% else %}CP {{ loop.index }}{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if just_passed_quiz %}
+    <div class="alert alert-success">
+      <span>🎉 <strong>Stage 1 Cleared!</strong> Your first physical location objective is now active below. Proceed to Location 1 to scan the QR code!</span>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Active Checkpoint Objective Card -->
+<div class="card" style="border-color: #3b82f6;">
+  <div class="card-header">
+    <div>
+      <span class="badge badge-info mono" style="margin-bottom: 0.35rem;">
+        CURRENT OBJECTIVE &bull; STAGE {{ user.current_stage }}
+      </span>
+      <h2>{{ checkpoint.badge_icon }} {{ checkpoint.title }}</h2>
+    </div>
+    <div class="badge badge-active mono">
+      Target: {{ checkpoint.checkpoint_id }}
+    </div>
+  </div>
+
+  <!-- Physical Location Clue -->
+  <div style="background: #090e1a; border-left: 4px solid var(--cyan); border-radius: 4px; padding: 1.25rem; margin-bottom: 1.5rem;">
+    <div style="font-weight: 700; font-size: 0.85rem; color: var(--cyan); text-transform: uppercase; margin-bottom: 0.35rem;">
+      📍 Physical Location Clue
+    </div>
+    <p style="font-size: 1.05rem; color: var(--text-bright); line-height: 1.6;">
+      "{{ checkpoint.clue }}"
+    </p>
+    <div style="margin-top: 0.75rem; font-size: 0.85rem; color: #94a3b8;">
+      <strong>Designated Spot:</strong> {{ checkpoint.location }}
+    </div>
+  </div>
+
+  <!-- QR Code Display Box -->
+  <div class="qr-card">
+    <div style="font-weight: 700; color: #38bdf8; font-size: 0.9rem; text-transform: uppercase; margin-bottom: 0.75rem; letter-spacing: 0.5px;">
+      📱 Physical QR Code Marker
+    </div>
+    <p style="color: var(--text-muted); font-size: 0.85rem; max-width: 480px; margin: 0 auto 1.25rem;">
+      When at the physical location, players scan this marker with their smartphone camera to verify their arrival and advance to the next stage.
+    </p>
+
+    <div class="qr-image-wrapper">
+      <img src="{{ url_for('generate_qr_image', checkpoint_id=checkpoint.checkpoint_id) }}" alt="QR Code for {{ checkpoint.title }}">
+    </div>
+
+    <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-top: 0.5rem;">
+      <!-- Direct Test Scan Link -->
+      <a href="{{ url_for('scan_checkpoint', checkpoint_id=checkpoint.checkpoint_id) }}" class="btn btn-primary">
+        <span>📲 Simulate / Test QR Scan</span>
+      </a>
+      <a href="{{ url_for('generate_qr_image', checkpoint_id=checkpoint.checkpoint_id) }}" target="_blank" class="btn btn-secondary">
+        <span>🔍 Open Full QR</span>
+      </a>
+    </div>
+
+    <div style="margin-top: 1rem; font-size: 0.8rem; color: #64748b;">
+      Scan Target URL: <code class="mono" style="color: #93c5fd;">/scan/{{ checkpoint.checkpoint_id }}</code>
+    </div>
+  </div>
+</div>
+
+<!-- Checkpoint Scan History Audit -->
+<div class="card">
+  <div class="card-header">
+    <h3>📋 Verified Checkpoint Logs</h3>
+    <span class="badge badge-info">{{ scans|length }} Cleared</span>
+  </div>
+
+  {% if scans %}
+    <div style="overflow-x: auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Stage</th>
+            <th>Location Verified</th>
+            <th>Marker Token</th>
+            <th>Timestamp (UTC)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for scan in scans %}
+            <tr>
+              <td><span class="badge badge-success mono">Stage {{ scan.stage_number }}</span></td>
+              <td style="font-weight: 600; color: var(--text-bright);">{{ scan.location_name }}</td>
+              <td class="mono" style="color: #38bdf8;">{{ scan.checkpoint_id }}</td>
+              <td class="mono" style="color: #94a3b8;">{{ scan.scanned_at }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p style="color: #64748b; font-size: 0.9rem; text-align: center; padding: 1.5rem;">
+      No physical checkpoints scanned yet. Head to Location 1 to log your first verified checkpoint!
+    </p>
+  {% endif %}
+</div>
+{% endblock %}
