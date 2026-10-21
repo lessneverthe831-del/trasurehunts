@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="gemLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded Gold Background -->
+  <rect width="128" height="128" rx="30" fill="url(#bg)"/>
+  
+  <!-- Faceted Diamond Gemstone -->
+  <polygon points="38,36 90,36 106,60 64,102 22,60" fill="#0f172a"/>
+  <polygon points="50,36 78,36 84,60 44,60" fill="url(#gemLight)"/>
+  <polygon points="44,60 84,60 64,102" fill="#1e293b"/>
+  <polygon points="22,60 44,60 64,102" fill="#090d16"/>
+  <polygon points="84,60 106,60 64,102" fill="#334155"/>
+  <polygon points="38,36 50,36 44,60 22,60" fill="#475569"/>
+  <polygon points="78,36 90,36 106,60 84,60" fill="#64748b"/>
+  
+  <!-- Diamond Sparkle Glint -->
+  <polygon points="98,18 100,27 109,29 100,31 98,40 96,31 87,29 96,27" fill="#ffffff"/>
+  <circle cx="56" cy="48" r="3.5" fill="#ffffff" opacity="0.9"/>
+</svg>
