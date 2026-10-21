@@ -346,7 +346,8 @@ def admin_dashboard():
         "total": len(users),
         "waiting": sum(1 for u in users if u["status"] == "waiting_approval"),
         "active": sum(1 for u in users if u["status"] in ["approved", "terms_accepted", "quiz_passed"]),
-        "completed": sum(1 for u in users if u["status"] == "completed")
+        "completed": sum(1 for u in users if u["status"] == "completed"),
+        "in_raffle": sum(1 for u in users if u.get("in_raffle_pool"))
     }
 
     return render_template(
@@ -377,7 +378,8 @@ def api_admin_users():
         "total": len(users),
         "waiting": sum(1 for u in users if u["status"] == "waiting_approval"),
         "active": sum(1 for u in users if u["status"] in ["approved", "terms_accepted", "quiz_passed"]),
-        "completed": sum(1 for u in users if u["status"] == "completed")
+        "completed": sum(1 for u in users if u["status"] == "completed"),
+        "in_raffle": sum(1 for u in users if u.get("in_raffle_pool"))
     }
     return jsonify({"success": True, "users": users, "stats": stats})
 
@@ -549,6 +551,88 @@ def api_raffle_seed_50():
 def api_raffle_clear_winners():
     database.clear_raffle_winners()
     return jsonify({"success": True, "message": "Winners history cleared."})
+
+
+@app.route("/api/admin/raffle/add-user", methods=["POST"])
+@require_admin
+def api_admin_raffle_add_user():
+    data = request.get_json(silent=True) or request.form.to_dict()
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"success": False, "message": "User ID is required."}), 400
+    success, msg = database.add_user_to_raffle_pool(int(user_id))
+    return jsonify({"success": success, "message": msg})
+
+
+@app.route("/api/admin/raffle/remove-user", methods=["POST"])
+@require_admin
+def api_admin_raffle_remove_user():
+    data = request.get_json(silent=True) or request.form.to_dict()
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"success": False, "message": "User ID is required."}), 400
+    success, msg = database.remove_user_from_raffle_pool(int(user_id))
+    return jsonify({"success": success, "message": msg})
+
+
+@app.route("/api/admin/raffle/add-all", methods=["POST"])
+@require_admin
+def api_admin_raffle_add_all():
+    success, msg = database.add_all_completed_to_raffle_pool()
+    return jsonify({"success": success, "message": msg})
+
+
+@app.route("/api/admin/raffle/clear-pool", methods=["POST"])
+@require_admin
+def api_admin_raffle_clear_pool():
+    success, msg = database.clear_raffle_pool()
+    return jsonify({"success": success, "message": msg})
+
+
+# -------------------------------------------------------------
+# Admin Data Backup & Restore (JSON Export & Import)
+# -------------------------------------------------------------
+
+@app.route("/api/admin/export-backup")
+@require_admin
+def api_admin_export_backup():
+    backup_data = database.export_backup_data()
+    filename = f"treasure_hunt_backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+    mem = io.BytesIO()
+    mem.write(json.dumps(backup_data, indent=2, ensure_ascii=False).encode('utf-8'))
+    mem.seek(0)
+    return send_file(
+        mem,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/json"
+    )
+
+
+@app.route("/api/admin/import-backup", methods=["POST"])
+@require_admin
+def api_admin_import_backup():
+    if "file" in request.files:
+        f = request.files["file"]
+        if not f or not f.filename.endswith(".json"):
+            return jsonify({"success": False, "message": "JSON ගොනුවක් පමණක් තෝරන්න (Only .json file allowed)."}), 400
+        try:
+            content = f.read().decode("utf-8")
+            payload = json.loads(content)
+        except Exception as e:
+            return jsonify({"success": False, "message": f"වලංගු නොවන JSON ගොනුවකි: {str(e)}"}), 400
+    else:
+        payload = request.get_json(silent=True) or {}
+
+    if not payload:
+        return jsonify({"success": False, "message": "දත්ත කිසිවක් හමු නොවීය."}), 400
+
+    stats = database.import_backup_data(payload)
+    return jsonify({
+        "success": True,
+        "message": f"සාර්ථකව දත්ත ප්‍රතිස්ථාපනය කළා! (QR කේත: {stats['qrs_imported']}, ප්‍රශ්න: {stats['questions_imported']})",
+        "stats": stats
+    })
 
 
 # -------------------------------------------------------------

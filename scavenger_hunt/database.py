@@ -88,6 +88,12 @@ def init_db():
             draw_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS raffle_pool (
+            user_id INTEGER PRIMARY KEY,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
         """)
 
         # Seed Settings if not present
@@ -298,16 +304,20 @@ def get_user_by_id(user_id: int):
 
 def get_all_users():
     """
-    Returns list of all users, enriched with latest activity status and counts.
+    Returns list of all users, enriched with latest activity status, counts, and raffle pool status.
     """
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM users ORDER BY id DESC")
     user_rows = cur.fetchall()
 
+    cur.execute("SELECT user_id FROM raffle_pool")
+    raffle_set = {r[0] for r in cur.fetchall()}
+
     users = []
     for u in user_rows:
         ud = dict(u)
+        ud["in_raffle_pool"] = ud["id"] in raffle_set
         # Fetch latest activity
         cur.execute("SELECT title, action_type, created_at FROM activity_logs WHERE user_id = ? ORDER BY id DESC LIMIT 1", (ud["id"],))
         latest = cur.fetchone()
@@ -991,22 +1001,23 @@ def get_user_detailed_profile(user_id: int) -> dict:
 
 
 # -------------------------------------------------------------
-# Raffle Draw / Lucky Draw Functions (Top 50 Contestants)
+# Raffle Draw / Lucky Draw Functions (Selective Admin Control)
 # -------------------------------------------------------------
 
 def get_raffle_eligible_participants(limit: int = 50):
     """
-    Retrieves the top finished participants (status = 'completed')
-    ordered by completion time (fastest first), up to `limit` (default 50).
+    Retrieves participants who completed all 5 QR codes AND were explicitly approved/selected
+    by Admin into `raffle_pool`, ordered by selection time, up to `limit` (default 50).
     """
     conn = get_db()
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, username, id_number, whatsapp, age_category, status,
-               completed_at, created_at
-        FROM users
-        WHERE status = 'completed'
-        ORDER BY completed_at ASC, id ASC
+        SELECT u.id, u.username, u.id_number, u.whatsapp, u.age_category, u.status,
+               u.completed_at, u.created_at, rp.added_at as raffle_selected_at
+        FROM users u
+        JOIN raffle_pool rp ON u.id = rp.user_id
+        WHERE u.status = 'completed'
+        ORDER BY rp.added_at ASC, u.completed_at ASC
         LIMIT ?
     """, (limit,))
     rows = cur.fetchall()
@@ -1018,6 +1029,76 @@ def get_raffle_eligible_participants(limit: int = 50):
         d["rank"] = rank
         result.append(d)
     return result
+
+
+def add_user_to_raffle_pool(user_id: int):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT username, status FROM users WHERE id = ?", (user_id,))
+    u = cur.fetchone()
+    if not u:
+        conn.close()
+        return False, "තරඟකරු හමු නොවීය (Contestant not found)."
+    if u["status"] != "completed":
+        conn.close()
+        return False, "තරඟකරු තවමත් QR කේත 5 සම්පූර්ණ කර නොමැත. (Must complete all 5 QR codes first)."
+
+    with conn:
+        conn.execute("INSERT OR IGNORE INTO raffle_pool (user_id) VALUES (?)", (user_id,))
+    conn.close()
+
+    log_user_activity(
+        user_id=user_id,
+        action_type="raffle_eligible",
+        title="🎟️ වාසනා දිනුම් ඇදීමට තෝරා ගන්නා ලදී (Accepted for Raffle Draw)",
+        description="Admin විසින් මෙම තරඟකරුව වාසනා දිනුම් ඇදීමේ (Raffle Draw) ලැයිස්තුවට අනුමත කරන ලදී."
+    )
+    return True, f"'{u['username']}' වාසනා දිනුම් ඇදීමට සාර්ථකව එක් කළා! (Added to Raffle Pool)"
+
+
+def remove_user_from_raffle_pool(user_id: int):
+    conn = get_db()
+    with conn:
+        conn.execute("DELETE FROM raffle_pool WHERE user_id = ?", (user_id,))
+    conn.close()
+    return True, "වාසනා දිනුම් ඇදීමෙන් ඉවත් කරන ලදී. (Removed from Raffle Pool)"
+
+
+def add_all_completed_to_raffle_pool():
+    conn = get_db()
+    with conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT OR IGNORE INTO raffle_pool (user_id)
+            SELECT id FROM users WHERE status = 'completed'
+        """)
+        added = cur.rowcount
+    conn.close()
+    return True, f"සම්පූර්ණ කළ සියලු තරඟකරුවන් ({added}) සාර්ථකව Raffle එකට එක් කළා!"
+
+
+def clear_raffle_pool():
+    conn = get_db()
+    with conn:
+        conn.execute("DELETE FROM raffle_pool")
+    conn.close()
+    return True, "Raffle ලැයිස්තුව හිස් කළා (Raffle Pool Cleared)."
+
+
+def get_completed_contestants_summary():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT u.id, u.username, u.id_number, u.whatsapp, u.age_category, u.completed_at,
+               CASE WHEN rp.user_id IS NOT NULL THEN 1 ELSE 0 END as in_raffle
+        FROM users u
+        LEFT JOIN raffle_pool rp ON u.id = rp.user_id
+        WHERE u.status = 'completed'
+        ORDER BY in_raffle DESC, u.completed_at ASC, u.id ASC
+    """)
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def save_raffle_winner(user_id: int, prize_title: str = "Grand Prize"):
@@ -1124,6 +1205,103 @@ def seed_sample_raffle_participants(target_total: int = 50):
                 now_str
             ))
             added += 1
+            new_user_id = cur.lastrowid
+            cur.execute("INSERT OR IGNORE INTO raffle_pool (user_id) VALUES (?)", (new_user_id,))
+        
+        # Also ensure up to target_total completed users are in raffle_pool
+        cur.execute("""
+            INSERT OR IGNORE INTO raffle_pool (user_id)
+            SELECT id FROM users WHERE status = 'completed'
+            LIMIT ?
+        """, (target_total,))
     conn.close()
     return added
+
+
+# -------------------------------------------------------------
+# Backup & Restore (JSON Export & Import)
+# -------------------------------------------------------------
+
+def export_backup_data():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, code, title, hint, is_trap, created_at FROM qr_codes ORDER BY id ASC")
+    qrs = [dict(r) for r in cur.fetchall()]
+    
+    cur.execute("SELECT id, question, option_a, option_b, option_c, option_d, correct_option, is_active FROM questions ORDER BY id ASC")
+    questions = [dict(r) for r in cur.fetchall()]
+    
+    cur.execute("SELECT key, value FROM settings")
+    settings = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    
+    return {
+        "version": "1.0",
+        "app": "Treasure Hunt",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "qr_codes": qrs,
+        "questions": questions,
+        "settings": settings
+    }
+
+
+def import_backup_data(payload: dict):
+    conn = get_db()
+    stats = {"qrs_imported": 0, "questions_imported": 0, "settings_imported": 0}
+    with conn:
+        # Import QR codes
+        if "qr_codes" in payload and isinstance(payload["qr_codes"], list):
+            for qr in payload["qr_codes"]:
+                if qr.get("code") and qr.get("title"):
+                    conn.execute("""
+                        INSERT INTO qr_codes (code, title, hint, is_trap)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(code) DO UPDATE SET
+                            title = excluded.title,
+                            hint = excluded.hint,
+                            is_trap = excluded.is_trap
+                    """, (
+                        str(qr["code"]).strip().upper(),
+                        str(qr["title"]).strip(),
+                        str(qr.get("hint") or "").strip(),
+                        int(qr.get("is_trap") or 0)
+                    ))
+                    stats["qrs_imported"] += 1
+
+        # Import Questions
+        if "questions" in payload and isinstance(payload["questions"], list):
+            for q in payload["questions"]:
+                if q.get("question") and q.get("correct_option"):
+                    # Check if already exists to avoid exact duplicates
+                    cur = conn.cursor()
+                    cur.execute("SELECT id FROM questions WHERE question = ?", (str(q["question"]).strip(),))
+                    existing = cur.fetchone()
+                    if not existing:
+                        conn.execute("""
+                            INSERT INTO questions (question, option_a, option_b, option_c, option_d, correct_option, is_active)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            str(q["question"]).strip(),
+                            str(q.get("option_a") or "").strip(),
+                            str(q.get("option_b") or "").strip(),
+                            str(q.get("option_c") or "").strip(),
+                            str(q.get("option_d") or "").strip(),
+                            str(q.get("correct_option") or "A").strip().upper(),
+                            int(q.get("is_active") if "is_active" in q else 1)
+                        ))
+                    stats["questions_imported"] += 1
+
+        # Import Settings
+        if "settings" in payload and isinstance(payload["settings"], list):
+            for s in payload["settings"]:
+                if s.get("key") and s.get("value"):
+                    conn.execute("""
+                        INSERT INTO settings (key, value) VALUES (?, ?)
+                        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                    """, (str(s["key"]), str(s["value"])))
+                    stats["settings_imported"] += 1
+
+    conn.close()
+    return stats
+
 
