@@ -285,6 +285,33 @@
 
     <!-- TAB 4: QR CODES & TRAPS -->
     <div id="tab-qrcodes" class="tab-content hidden space-y-6">
+        <!-- Backup & Restore Banner -->
+        <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 text-base">
+                    <i class="fa-solid fa-cloud-arrow-down"></i>
+                </div>
+                <div>
+                    <h4 class="text-xs font-bold text-white flex items-center space-x-2">
+                        <span>QR කේත සුරැකුම (Data Backup & Restore)</span>
+                        <span class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-mono">SAFEGUARD</span>
+                    </h4>
+                    <p class="text-[11px] text-slate-400">Hosting update වලදී ඔබ හැදූ QR කේත මැකී නොයන ලෙස ඕනෑම වෙලාවක Download කර තබාගන්න (හෝ Backup එකක් නැවත Restore කරන්න).</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 shrink-0">
+                <a href="{{ url_for('api_admin_export_backup') }}" download class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs border border-amber-500/30 transition-all flex items-center space-x-1.5 shadow-sm">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Download Backup (JSON)</span>
+                </a>
+                <button type="button" onclick="document.getElementById('backupFileInput').click()" class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center space-x-1.5 shadow-sm">
+                    <i class="fa-solid fa-upload"></i>
+                    <span>Restore Backup</span>
+                </button>
+                <input type="file" id="backupFileInput" accept=".json" class="hidden" onchange="uploadBackupFile(this)">
+            </div>
+        </div>
+
         <!-- Add QR Code Form -->
         <div class="glass-panel p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4">
             <h3 class="text-base font-bold text-white flex items-center space-x-2">
@@ -411,9 +438,9 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                 <div class="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
-                    <span class="text-xs text-slate-400">සුදුසුකම් ලත් සම්පූර්ණ කළ පිරිස (Qualified):</span>
-                    <div class="text-2xl font-black text-amber-400 font-mono">{{ stats.completed }} / 50</div>
-                    <p class="text-[11px] text-slate-500">පළමු 50 දෙනා ස්වයංක්‍රීයව දිනුම් ඇදීමේ ලැයිස්තුවට එක්වේ.</p>
+                    <span class="text-xs text-slate-400">Raffle එකට ඔබ තෝරාගත් පිරිස (In Raffle Pool):</span>
+                    <div class="text-2xl font-black text-amber-400 font-mono" id="statRafflePoolDisplay">{{ stats.in_raffle }} / 50</div>
+                    <p class="text-[11px] text-slate-500">QR 5 සම්පූර්ණ කළ මුළු පිරිස: <span id="statTotalCompletedDisplay" class="text-white font-bold">{{ stats.completed }}</span></p>
                 </div>
                 <div class="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
                     <span class="text-xs text-slate-400">කැරකෙන කාලය (Spin Duration):</span>
@@ -421,22 +448,71 @@
                     <p class="text-[11px] text-slate-500">වේදිකා තිරය මතදී කාලය පහසුවෙන් තෝරාගත හැක.</p>
                 </div>
                 <div class="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
-                    <span class="text-xs text-slate-400">විශේෂාංග (Features):</span>
+                    <span class="text-xs text-slate-400">ක්‍රියාකාරීත්වය (Selective Control):</span>
                     <div class="text-xs text-slate-300 space-y-0.5 mt-1">
-                        <div>✨ Fullscreen Projector Mode</div>
-                        <div>🔊 Realistic Tick Sound Effects</div>
-                        <div>🎊 Golden Confetti Celebration</div>
+                        <div>🎯 QR 5ම ස්කෑන් කළ අයගෙන් ඔබ තෝරන අය පමණක් Raffle එකට එක්වේ.</div>
+                        <div>✨ Fullscreen Projector & Tick Sound</div>
                     </div>
                 </div>
             </div>
 
-            <div class="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between">
-                <span class="text-xs text-slate-400">දිනුම් ඇදීමේ අතුරුමුහුණත වෙනම Screen එකක හෝ Projector එකක ප්‍රදර්ශනය කළ හැක.</span>
+            <!-- Quick Action Buttons for Pool -->
+            <div class="mt-6 pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" onclick="addAllCompletedToRaffle()"
+                        class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center space-x-1.5">
+                        <i class="fa-solid fa-check-double"></i>
+                        <span>සම්පූර්ණ කළ සියල්ලන්ම Raffle එකට එක් කරන්න (Select All Finished)</span>
+                    </button>
+                    <button type="button" onclick="clearRafflePool()"
+                        class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-rose-950 text-rose-300 font-bold text-xs border border-slate-700 hover:border-rose-800/40 transition-all flex items-center space-x-1.5">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>Raffle ලැයිස්තුව හිස් කරන්න (Clear Pool)</span>
+                    </button>
+                    <button type="button" onclick="seedSampleRaffle50()"
+                        class="px-3 py-2 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 font-bold text-xs border border-indigo-800/40 transition-all flex items-center space-x-1.5">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>Demo තරඟකරුවන් 50ක් එක් කරන්න (Seed 50)</span>
+                    </button>
+                </div>
+
                 <a href="{{ url_for('admin_raffle') }}" target="_blank"
                     class="text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center space-x-1">
-                    <span>කවුළුව විවෘත කරන්න</span>
+                    <span>ප්‍රොජෙක්ටර් තිරය විවෘත කරන්න</span>
                     <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
                 </a>
+            </div>
+
+            <!-- Table of Completed Contestants for Selective Approval -->
+            <div class="mt-6 pt-6 border-t border-slate-800/80 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-bold text-white flex items-center space-x-2">
+                            <i class="fa-solid fa-users-gear text-amber-400"></i>
+                            <span>තරඟය සම්පූර්ණ කළ අය අතරින් Raffle එකට තේරීම (Selective Raffle Approval)</span>
+                        </h4>
+                        <p class="text-xs text-slate-400">QR 5ම සාර්ථකව සොයාගත් තරඟකරුවන් අතරින් ඔබ 'Accept' කරන අය පමණක් වේදිකාවේ Raffle Draw එකට ඇතුළත් වේ.</p>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto max-h-96 rounded-2xl border border-slate-800 bg-slate-950/60">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-900/90 text-slate-400 uppercase font-bold tracking-wider border-b border-slate-800 sticky top-0">
+                            <tr>
+                                <th class="py-2.5 px-3">#ID</th>
+                                <th class="py-2.5 px-3">තරඟකරු (Name)</th>
+                                <th class="py-2.5 px-3">හැඳුනුම්පත</th>
+                                <th class="py-2.5 px-3">WhatsApp</th>
+                                <th class="py-2.5 px-3">සම්පූර්ණ කළ වේලාව</th>
+                                <th class="py-2.5 px-3">Raffle තත්ත්වය</th>
+                                <th class="py-2.5 px-3 text-right">ක්‍රියාමාර්ගය</th>
+                            </tr>
+                        </thead>
+                        <tbody id="raffleCompletedTableBody" class="divide-y divide-slate-800/80">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -595,6 +671,12 @@
                 document.getElementById('statActive').textContent = data.stats.active;
                 document.getElementById('statCompleted').textContent = data.stats.completed;
 
+                // Update Raffle Pool Stats
+                const raffleDisp = document.getElementById('statRafflePoolDisplay');
+                if (raffleDisp) raffleDisp.textContent = `${data.stats.in_raffle} / 50`;
+                const compDisp = document.getElementById('statTotalCompletedDisplay');
+                if (compDisp) compDisp.textContent = data.stats.completed;
+
                 const badge = document.getElementById('badgeWaitingCount');
                 if (data.stats.waiting > 0) {
                     badge.textContent = data.stats.waiting;
@@ -611,6 +693,7 @@
 
                 currentUsersList = data.users;
                 renderUsersTable(currentUsersList);
+                renderRaffleCompletedTable(currentUsersList);
 
                 // If modal is open for a user, refresh modal data in real-time!
                 if (activeModalUserId) {
@@ -653,7 +736,11 @@
             } else if (u.status === 'quiz_passed') {
                 statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">🎯 QR Hunt (' + (u.scanned_count || 0) + '/5)</span>';
             } else if (u.status === 'completed') {
-                statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🏆 ජයග්‍රාහකයා</span>';
+                if (u.in_raffle_pool) {
+                    statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">🎟️ In Raffle</span>';
+                } else {
+                    statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🏆 Finished</span>';
+                }
             } else if (u.status === 'rejected') {
                 statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">ප්‍රතික්ෂේපිත</span>';
             }
@@ -716,6 +803,17 @@
                             <button onclick="rejectUser(${u.id})" class="px-1.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-950 text-rose-400 font-bold text-[11px] border border-slate-700 transition-all" title="Decline">
                                 <i class="fa-solid fa-xmark"></i>
                             </button>
+                        ` : ''}
+                        ${u.status === 'completed' ? `
+                            ${u.in_raffle_pool ? `
+                                <button onclick="removeFromRaffle(${u.id}, '${escapeHtml(u.username)}')" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-rose-950 text-amber-300 hover:text-rose-300 font-bold text-[11px] border border-amber-500/40 transition-all shadow-sm" title="Raffle එකෙන් ඉවත් කරන්න (Remove from Raffle)">
+                                    <i class="fa-solid fa-ticket-simple text-amber-400 mr-1"></i> In Raffle
+                                </button>
+                            ` : `
+                                <button onclick="addToRaffle(${u.id}, '${escapeHtml(u.username)}')" class="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-[11px] shadow-md shadow-amber-500/20 transition-all" title="Raffle එකට Accept කරන්න (Accept for Raffle)">
+                                    <i class="fa-solid fa-ticket mr-1"></i> Accept Raffle
+                                </button>
+                            `}
                         ` : ''}
                         <button onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')" class="px-2 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-[11px] transition-all" title="Delete User Permanently">
                             <i class="fa-solid fa-trash-can"></i>
@@ -922,6 +1020,135 @@
         }
     }
 
+    // Render Completed Contestants Table in Raffle Tab
+    function renderRaffleCompletedTable(users) {
+        const tbody = document.getElementById('raffleCompletedTableBody');
+        if (!tbody) return;
+        const completedUsers = (users || []).filter(u => u.status === 'completed');
+        if (completedUsers.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="py-5 text-center text-slate-500 font-medium">තවමත් කිසිදු තරඟකරුවෙකු QR 5ම සම්පූර්ණ කර නොමැත. (No completed contestants yet).</td></tr>`;
+            return;
+        }
+
+        let html = '';
+        completedUsers.forEach(u => {
+            const inRaffle = Boolean(u.in_raffle_pool);
+            html += `
+                <tr class="hover:bg-slate-900/60 transition-colors ${inRaffle ? 'bg-amber-950/20' : ''}">
+                    <td class="py-2.5 px-3 font-mono text-slate-400">#${u.id}</td>
+                    <td class="py-2.5 px-3 font-bold text-white">
+                        <div class="flex items-center space-x-1.5">
+                            <span>${escapeHtml(u.username)}</span>
+                            <span class="text-[9px] px-1.5 py-0.2 rounded ${u.age_category === 'under_18' ? 'bg-sky-950 text-sky-400 border border-sky-800' : 'bg-purple-950 text-purple-400 border border-purple-800'}">
+                                ${u.age_category === 'under_18' ? '<18' : '18+'}
+                            </span>
+                        </div>
+                    </td>
+                    <td class="py-2.5 px-3 font-mono text-indigo-300">${escapeHtml(u.id_number)}</td>
+                    <td class="py-2.5 px-3 font-mono text-emerald-400">
+                        <a href="https://wa.me/${escapeHtml(u.whatsapp).replace(/[^0-9]/g, '')}" target="_blank" class="hover:underline flex items-center space-x-1">
+                            <i class="fa-brands fa-whatsapp"></i>
+                            <span>${escapeHtml(u.whatsapp)}</span>
+                        </a>
+                    </td>
+                    <td class="py-2.5 px-3 text-[11px] text-slate-400">${u.completed_at || 'Just now'}</td>
+                    <td class="py-2.5 px-3">
+                        ${inRaffle ? `
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">🎟️ Selected (තෝරා ඇත)</span>
+                        ` : `
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400">තෝරා නැත (Pending)</span>
+                        `}
+                    </td>
+                    <td class="py-2.5 px-3 text-right">
+                        ${inRaffle ? `
+                            <button onclick="removeFromRaffle(${u.id}, '${escapeHtml(u.username)}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-950 text-rose-300 hover:text-white text-[11px] border border-rose-800/40 transition-all font-bold">
+                                <i class="fa-solid fa-xmark mr-1"></i> ඉවත් කරන්න (Remove)
+                            </button>
+                        ` : `
+                            <button onclick="addToRaffle(${u.id}, '${escapeHtml(u.username)}')" class="px-3 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-[11px] shadow-sm transition-all">
+                                <i class="fa-solid fa-check mr-1"></i> Accept for Raffle
+                            </button>
+                        `}
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
+
+    // Raffle Pool Actions
+    async function addToRaffle(userId, username) {
+        try {
+            const res = await fetch("{{ url_for('api_admin_raffle_add_user') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_id: userId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                fetchLiveAdminData();
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (e) {
+            alert("Error: " + e);
+        }
+    }
+
+    async function removeFromRaffle(userId, username) {
+        try {
+            const res = await fetch("{{ url_for('api_admin_raffle_remove_user') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_id: userId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                fetchLiveAdminData();
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (e) {
+            alert("Error: " + e);
+        }
+    }
+
+    async function addAllCompletedToRaffle() {
+        if (!confirm("QR 5ම සාර්ථකව නිම කළ සියලු තරඟකරුවන්ව Raffle Draw එකට ඇතුළත් කිරීමට අවශ්‍යද? (Add all finished contestants to Raffle pool?)")) return;
+        try {
+            const res = await fetch("{{ url_for('api_admin_raffle_add_all') }}", { method: "POST" });
+            const data = await res.json();
+            alert(data.message);
+            fetchLiveAdminData();
+        } catch (e) {
+            alert("Error: " + e);
+        }
+    }
+
+    async function clearRafflePool() {
+        if (!confirm("Raffle Draw එකට තෝරාගත් සියලු දෙනා ලැයිස්තුවෙන් ඉවත් කිරීමට අවශ්‍යද? (Clear all participants from Raffle Draw pool?)")) return;
+        try {
+            const res = await fetch("{{ url_for('api_admin_raffle_clear_pool') }}", { method: "POST" });
+            const data = await res.json();
+            alert(data.message);
+            fetchLiveAdminData();
+        } catch (e) {
+            alert("Error: " + e);
+        }
+    }
+
+    async function seedSampleRaffle50() {
+        if (!confirm("Demo තරඟකරුවන් 50ක් පද්ධතියට එක් කර ඔවුන්ව Raffle එකට තෝරා ගැනීමට අවශ්‍යද? (Seed 50 demo participants for testing?)")) return;
+        try {
+            const res = await fetch("{{ url_for('api_raffle_seed_50') }}", { method: "POST" });
+            const data = await res.json();
+            alert(data.message);
+            fetchLiveAdminData();
+        } catch (e) {
+            alert("Error: " + e);
+        }
+    }
+
     async function saveTerms() {
         const terms = document.getElementById('termsInput').value.trim();
         const btn = document.getElementById('btnSaveTerms');
@@ -1034,6 +1261,37 @@
             if (data.success) window.location.reload();
         } catch (e) {
             alert("Error: " + e);
+        }
+    }
+
+    // Upload & Restore Backup
+    async function uploadBackupFile(input) {
+        if (!input.files || input.files.length === 0) return;
+        const file = input.files[0];
+        if (!confirm(`"${file.name}" Backup ගොනුවෙන් QR කේත සහ දත්ත නැවත Restore කිරීමට අවශ්‍යද? (Restore backup?)`)) {
+            input.value = "";
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const res = await fetch("{{ url_for('api_admin_import_backup') }}", {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (e) {
+            alert("Error: " + e);
+        } finally {
+            input.value = "";
         }
     }
 
