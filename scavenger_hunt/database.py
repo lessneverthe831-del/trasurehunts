@@ -80,6 +80,14 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS raffle_winners (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            prize_title TEXT DEFAULT 'Grand Prize',
+            draw_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
         """)
 
         # Seed Settings if not present
@@ -980,3 +988,142 @@ def get_user_detailed_profile(user_id: int) -> dict:
         "total_targets": len(assigned_qrs),
         "current_step": current_step_num
     }
+
+
+# -------------------------------------------------------------
+# Raffle Draw / Lucky Draw Functions (Top 50 Contestants)
+# -------------------------------------------------------------
+
+def get_raffle_eligible_participants(limit: int = 50):
+    """
+    Retrieves the top finished participants (status = 'completed')
+    ordered by completion time (fastest first), up to `limit` (default 50).
+    """
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, username, id_number, whatsapp, age_category, status,
+               completed_at, created_at
+        FROM users
+        WHERE status = 'completed'
+        ORDER BY completed_at ASC, id ASC
+        LIMIT ?
+    """, (limit,))
+    rows = cur.fetchall()
+    conn.close()
+
+    result = []
+    for rank, r in enumerate(rows, start=1):
+        d = dict(r)
+        d["rank"] = rank
+        result.append(d)
+    return result
+
+
+def save_raffle_winner(user_id: int, prize_title: str = "Grand Prize"):
+    conn = get_db()
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    with conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO raffle_winners (user_id, prize_title, draw_timestamp)
+            VALUES (?, ?, ?)
+        """, (user_id, prize_title, now_str))
+        winner_id = cur.lastrowid
+    conn.close()
+
+    user = get_user_by_id(user_id)
+    if user:
+        log_user_activity(
+            user_id=user_id,
+            action_type="raffle_won",
+            title=f"🎉 වාසනා දිනුම් ඇදීමෙන් ජයග්‍රහණය කළා! ({prize_title})",
+            description=f"තරඟකරු 50 දෙනාගේ වාසනා දිනුම් ඇදීමේ ({prize_title}) ජයග්‍රාහකයා ලෙස තේරී පත් විය!",
+            details_dict={"prize_title": prize_title, "draw_timestamp": now_str}
+        )
+    return winner_id
+
+
+def get_raffle_winners():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT rw.id as raffle_id, rw.prize_title, rw.draw_timestamp,
+               u.id as user_id, u.username, u.id_number, u.whatsapp, u.age_category, u.completed_at
+        FROM raffle_winners rw
+        JOIN users u ON rw.user_id = u.id
+        ORDER BY rw.id DESC
+    """)
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def clear_raffle_winners():
+    conn = get_db()
+    with conn:
+        conn.execute("DELETE FROM raffle_winners")
+    conn.close()
+
+
+def seed_sample_raffle_participants(target_total: int = 50):
+    """
+    Populates sample completed contestants up to `target_total` (50)
+    so the administrator can test and showcase the full 50-person
+    raffle wheel immediately without waiting for 50 real players to finish.
+    """
+    sample_first_names = [
+        "Kasun", "Nuwan", "Amila", "Chamari", "Dinesh", "Kavindu", "Sithara", "Buddhika",
+        "Rashmi", "Pathum", "Sachini", "Tharindu", "Hiruni", "Malinda", "Nisansala",
+        "Janith", "Dilani", "Pradeep", "Supun", "Chathurika", "Ravindu", "Imasha",
+        "Sandeepa", "Oshada", "Piyumi", "Maduranga", "Senuri", "Gayan", "Anjali",
+        "Danushka", "Sewwandi", "Isuru", "Upeksha", "Harsha", "Nadeesha", "Lakshan",
+        "Shalika", "Vishwa", "Ishara", "Suresh", "Gayani", "Naveen", "Tharaka",
+        "Ruwan", "Hasini", "Dinuka", "Yashodha", "Asanka", "Purnima", "Charith"
+    ]
+    sample_last_names = [
+        "Perera", "Silva", "Fernando", "Jayasinghe", "Bandara", "Wickramasinghe",
+        "Gunasekara", "Herath", "Dissanayake", "Senanayake", "Rajapaksha", "Fonseka",
+        "Karunaratne", "Amarasinghe", "Abeysekara", "Alwis", "Kulathunga", "Weerasinghe"
+    ]
+
+    current_completed = get_raffle_eligible_participants(limit=100)
+    needed = max(0, target_total - len(current_completed))
+    if needed <= 0:
+        return 0
+
+    conn = get_db()
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Fetch 5 valid QRs and 5 Qs to mock assignment
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM questions LIMIT 5")
+    q_ids = [r["id"] for r in cur.fetchall()]
+    cur.execute("SELECT id FROM qr_codes WHERE is_trap = 0 LIMIT 5")
+    qr_ids = [r["id"] for r in cur.fetchall()]
+
+    added = 0
+    with conn:
+        for i in range(needed):
+            fname = sample_first_names[i % len(sample_first_names)]
+            lname = sample_last_names[(i * 3) % len(sample_last_names)]
+            full_name = f"{fname} {lname}"
+            id_num = f"200{random.randint(1, 4)}{random.randint(10000000, 99999999)}"
+            phone = f"07{random.choice(['7', '1', '2', '5', '8'])}{random.randint(1000000, 9999999)}"
+            age_cat = random.choice(["under_18", "18_plus"])
+
+            cur.execute("""
+                INSERT INTO users (
+                    username, id_number, whatsapp, age_category, status,
+                    assigned_question_ids, assigned_qr_ids, scanned_qr_ids,
+                    quiz_score, completed_at, ip_address
+                ) VALUES (?, ?, ?, ?, 'completed', ?, ?, ?, 5, ?, '127.0.0.1')
+            """, (
+                full_name, id_num, phone, age_cat,
+                json.dumps(q_ids), json.dumps(qr_ids), json.dumps(qr_ids),
+                now_str
+            ))
+            added += 1
+    conn.close()
+    return added
+

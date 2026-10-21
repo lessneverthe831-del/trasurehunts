@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from functools import wraps
 from flask import (
     Flask, render_template, request, redirect, url_for, session, 
-    jsonify, send_file, flash, abort
+    jsonify, send_file, send_from_directory, flash, abort
 )
 import qrcode
 from qrcode.image.pil import PilImage
@@ -43,6 +43,11 @@ def require_admin(f):
             return redirect(url_for("admin_login", next=request.path))
         return f(*args, **kwargs)
     return decorated_function
+
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory('static', 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
 # -------------------------------------------------------------
@@ -484,6 +489,66 @@ def api_admin_change_pin():
 
     database.set_setting("master_pin", new_pin)
     return jsonify({"success": True, "message": "Master PIN updated successfully."})
+
+
+# -------------------------------------------------------------
+# Raffle Draw / Lucky Draw (Top 50 Contestants Stage View)
+# -------------------------------------------------------------
+
+@app.route("/admin/raffle")
+@require_admin
+def admin_raffle():
+    participants = database.get_raffle_eligible_participants(limit=50)
+    winners = database.get_raffle_winners()
+    return render_template(
+        "admin_raffle.html",
+        participants=participants,
+        winners=winners,
+        total_eligible=len(participants)
+    )
+
+
+@app.route("/api/raffle/participants")
+@require_admin
+def api_raffle_participants():
+    participants = database.get_raffle_eligible_participants(limit=50)
+    return jsonify({"success": True, "participants": participants, "total": len(participants)})
+
+
+@app.route("/api/raffle/save-winner", methods=["POST"])
+@require_admin
+def api_raffle_save_winner():
+    data = request.get_json(silent=True) or request.form.to_dict()
+    user_id = data.get("user_id")
+    prize_title = data.get("prize_title", "Grand Prize").strip()
+
+    if not user_id:
+        return jsonify({"success": False, "message": "User ID is required."}), 400
+
+    winner_id = database.save_raffle_winner(int(user_id), prize_title)
+    winners = database.get_raffle_winners()
+    return jsonify({"success": True, "winner_id": winner_id, "winners": winners})
+
+
+@app.route("/api/raffle/seed-50", methods=["POST"])
+@require_admin
+def api_raffle_seed_50():
+    added = database.seed_sample_raffle_participants(target_total=50)
+    participants = database.get_raffle_eligible_participants(limit=50)
+    return jsonify({
+        "success": True,
+        "added": added,
+        "total": len(participants),
+        "participants": participants,
+        "message": f"Successfully ensured 50 eligible contestants (Added {added} demo participants)."
+    })
+
+
+@app.route("/api/raffle/clear-winners", methods=["POST"])
+@require_admin
+def api_raffle_clear_winners():
+    database.clear_raffle_winners()
+    return jsonify({"success": True, "message": "Winners history cleared."})
 
 
 # -------------------------------------------------------------
