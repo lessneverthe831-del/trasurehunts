@@ -2,85 +2,206 @@
 
 {% block content %}
 <div class="max-w-md mx-auto my-6">
-    <div class="glass-panel p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-800 glow-brand">
+    <div class="glass-panel p-6 sm:p-8 rounded-3xl shadow-2xl border border-slate-800 glow-brand">
         <!-- Title & Header -->
         <div class="text-center mb-6">
             <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-600/20 text-brand-400 border border-brand-500/30 mb-3 shadow-inner">
                 <i class="fa-solid fa-id-card text-2xl"></i>
             </div>
-            <h2 class="text-2xl font-extrabold text-white tracking-tight">තරඟකරු ලියාපදිංචිය (Contestant Registration)</h2>
-            <p class="text-xs text-amber-300 font-medium mt-1">Treasure Hunt (නිධන් සෙවුම) Entry</p>
-            <p class="text-xs text-slate-400 mt-2">කරුණාකර තරඟයට එක්වීම සඳහා පහත තොරතුරු සම්පූර්ණ කරන්න. (Please fill in the details below to join).</p>
+            <h2 class="text-2xl font-extrabold text-white tracking-tight">තරඟකරු ලියාපදිංචිය</h2>
+            <p class="text-xs text-amber-300 font-medium mt-1">Treasure Hunt (නිධන් සෙවුම) Entry Registration</p>
+            <p class="text-xs text-slate-400 mt-2">
+                තරඟයට එක්වීම සඳහා පහත තොරතුරු සම්පූර්ණ කර ඔබගේ WhatsApp අංකය තහවුරු කරන්න.
+            </p>
         </div>
 
-        <form method="POST" action="{{ url_for('register') }}" class="space-y-4">
-            <!-- Username -->
-            <div>
-                <label for="username" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                    <i class="fa-solid fa-user text-brand-400 mr-1.5"></i>නම / පරිශීලක නම (Full Name / Username)
-                </label>
-                <input type="text" id="username" name="username" required
-                    value="{{ form.username if form else '' }}"
-                    placeholder="e.g. Kasun Perera"
-                    class="w-full px-4 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all">
-            </div>
+        <!-- Alert Banner (Dynamic Feedback / Duplicate / Error Alert) -->
+        <div id="registerAlert" class="hidden mb-4 p-4 rounded-2xl text-xs glass-panel transition-all"></div>
 
-            <!-- National ID or University ID -->
-            <div>
-                <label for="id_number" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                    <i class="fa-solid fa-address-card text-brand-400 mr-1.5"></i>ජාතික හැඳුනුම්පත් / විශ්වවිද්‍යාල අංකය (NIC / Uni ID)
-                </label>
-                <input type="text" id="id_number" name="id_number" required
-                    value="{{ form.id_number if form else '' }}"
-                    placeholder="e.g. 200123456789 or SE/2021/045"
-                    class="w-full px-4 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all">
+        <!-- Fallback Server-Side Flashed Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="space-y-2 mb-4">
+            {% for category, message in messages %}
+            <div class="p-3 rounded-xl text-xs {% if category == 'danger' %}bg-rose-950/60 border border-rose-500/40 text-rose-200{% elif category == 'warning' %}bg-amber-950/60 border border-amber-500/40 text-amber-200{% else %}bg-slate-900 border border-slate-700 text-slate-200{% endif %}">
+                <i class="fa-solid fa-circle-exclamation mr-1.5"></i>{{ message }}
             </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
 
-            <!-- WhatsApp Number -->
-            <div>
-                <label for="whatsapp" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                    <i class="fa-brands fa-whatsapp text-emerald-400 mr-1.5"></i>WhatsApp අංකය (WhatsApp Phone Number)
-                </label>
-                <input type="tel" id="whatsapp" name="whatsapp" required
-                    value="{{ form.whatsapp if form else '' }}"
-                    placeholder="e.g. 0771234567 or +94771234567"
-                    class="w-full px-4 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all">
-            </div>
-
-            <!-- Age Limit Selection -->
-            <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                    <i class="fa-solid fa-users-line text-brand-400 mr-1.5"></i>වයස් සීමාව (Age Category)
-                </label>
-                <div class="grid grid-cols-2 gap-3">
-                    <label class="relative flex items-center justify-center p-3 rounded-xl border border-slate-700 bg-slate-900/70 cursor-pointer hover:border-brand-500 transition-all has-[:checked]:border-brand-500 has-[:checked]:bg-brand-950/40 has-[:checked]:ring-1 has-[:checked]:ring-brand-500">
-                        <input type="radio" name="age_category" value="under_18" required class="sr-only"
-                            {% if form and form.age_category == 'under_18' %}checked{% endif %}>
-                        <div class="text-center">
-                            <span class="block text-sm font-bold text-white">අවුරුදු 18ට අඩු</span>
-                            <span class="block text-[11px] text-slate-400">Under 18 Years</span>
-                        </div>
+        <form id="registerForm" method="POST" action="{{ url_for('register') }}" class="space-y-4">
+            
+            <!-- ================= STEP 1: CONTESTANT DETAILS ================= -->
+            <div id="step1Fields" class="space-y-4">
+                
+                <!-- Full Name / Username -->
+                <div>
+                    <label for="username" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+                        <i class="fa-solid fa-user text-brand-400 mr-1.5"></i>සම්පූර්ණ නම (Full Name / Username)
                     </label>
+                    <input type="text" id="username" name="username" required
+                        value="{{ form.username if form else '' }}"
+                        placeholder="e.g. Kasun Perera"
+                        class="w-full px-4 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all">
+                </div>
 
-                    <label class="relative flex items-center justify-center p-3 rounded-xl border border-slate-700 bg-slate-900/70 cursor-pointer hover:border-brand-500 transition-all has-[:checked]:border-brand-500 has-[:checked]:bg-brand-950/40 has-[:checked]:ring-1 has-[:checked]:ring-brand-500">
-                        <input type="radio" name="age_category" value="18_plus" required class="sr-only"
-                            {% if form and form.age_category == '18_plus' %}checked{% endif %}>
-                        <div class="text-center">
-                            <span class="block text-sm font-bold text-white">අවුරුදු 18ට වැඩි</span>
-                            <span class="block text-[11px] text-slate-400">18 Years or Above</span>
+                <!-- National ID or University ID -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label for="id_number" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+                            <i class="fa-solid fa-address-card text-brand-400 mr-1.5"></i>හැඳුනුම්පත් / ශිෂ්‍ය අංකය (NIC / Uni ID)
+                        </label>
+                        <span class="text-[10px] text-amber-400/90 font-mono">1 Person 1 Entry</span>
+                    </div>
+                    <input type="text" id="id_number" name="id_number" required
+                        value="{{ form.id_number if form else '' }}"
+                        placeholder="e.g. 200123456789 or SE/2021/045"
+                        class="w-full px-4 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-white placeholder-slate-500 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-all">
+                    
+                    <!-- Live Duplicate ID Warning -->
+                    <div id="idDuplicateWarning" class="hidden mt-1 text-[11px] text-rose-400 font-semibold flex items-center space-x-1">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                        <span id="idDuplicateMsg">මෙම හැඳුනුම්පත් අංකය දැනටමත් ලියාපදිංචි කර ඇත!</span>
+                    </div>
+                </div>
+
+                <!-- WhatsApp Number -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label for="whatsapp" class="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+                            <i class="fa-brands fa-whatsapp text-emerald-400 mr-1.5"></i>WhatsApp අංකය (Phone Number)
+                        </label>
+                        <span class="text-[10px] text-emerald-400 font-bold">OTP සත්‍යාපනය</span>
+                    </div>
+                    <div class="relative">
+                        <input type="tel" id="whatsapp" name="whatsapp" required
+                            value="{{ form.whatsapp if form else '' }}"
+                            placeholder="e.g. 0771234567 or +94771234567"
+                            class="w-full px-4 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all">
+                        <div class="absolute right-3 top-2.5 text-xs text-slate-500">
+                            <i class="fa-solid fa-lock"></i>
                         </div>
+                    </div>
+                    
+                    <!-- Live Duplicate WhatsApp Warning -->
+                    <div id="whatsappDuplicateWarning" class="hidden mt-1 text-[11px] text-rose-400 font-semibold flex items-center space-x-1">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                        <span id="whatsappDuplicateMsg">මෙම WhatsApp අංකය දැනටමත් ලියාපදිංචි කර ඇත!</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1">
+                        මෙම අංකයට OTP කේතයක් WhatsApp මඟින් ලැබෙන බැවින් වලංගු අංකයක් ඇතුල් කරන්න.
+                    </p>
+                </div>
+
+                <!-- Age Category Selection -->
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
+                        <i class="fa-solid fa-users-line text-brand-400 mr-1.5"></i>වයස් සීමාව (Age Category)
                     </label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="relative flex items-center justify-center p-3 rounded-xl border border-slate-700 bg-slate-900/70 cursor-pointer hover:border-brand-500 transition-all has-[:checked]:border-brand-500 has-[:checked]:bg-brand-950/40 has-[:checked]:ring-1 has-[:checked]:ring-brand-500">
+                            <input type="radio" name="age_category" value="under_18" required class="sr-only"
+                                {% if form and form.age_category == 'under_18' %}checked{% endif %}>
+                            <div class="text-center">
+                                <span class="block text-sm font-bold text-white">අවුරුදු 18ට අඩු</span>
+                                <span class="block text-[11px] text-slate-400">Under 18 Years</span>
+                            </div>
+                        </label>
+
+                        <label class="relative flex items-center justify-center p-3 rounded-xl border border-slate-700 bg-slate-900/70 cursor-pointer hover:border-brand-500 transition-all has-[:checked]:border-brand-500 has-[:checked]:bg-brand-950/40 has-[:checked]:ring-1 has-[:checked]:ring-brand-500">
+                            <input type="radio" name="age_category" value="18_plus" required class="sr-only"
+                                {% if not form or form.age_category == '18_plus' or not form.age_category %}checked{% endif %}>
+                            <div class="text-center">
+                                <span class="block text-sm font-bold text-white">අවුරුදු 18ට වැඩි</span>
+                                <span class="block text-[11px] text-slate-400">18 Years or Above</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Step 1 Button: Get WhatsApp OTP -->
+                <div class="pt-2">
+                    <button type="button" id="btnRequestOtp"
+                        class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm tracking-wide shadow-xl shadow-emerald-600/30 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center space-x-2">
+                        <i class="fa-brands fa-whatsapp text-lg"></i>
+                        <span>WhatsApp OTP ලබාගන්න (Send OTP)</span>
+                        <i class="fa-solid fa-arrow-right text-xs ml-1"></i>
+                    </button>
                 </div>
             </div>
 
-            <!-- Submit Button -->
-            <div class="pt-3">
-                <button type="submit"
-                    class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-sm tracking-wide shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center space-x-2">
-                    <span>ලියාපදිංචි වී ඇතුල්වන්න (Register & Enter)</span>
-                    <i class="fa-solid fa-arrow-right text-xs"></i>
-                </button>
+            <!-- ================= STEP 2: WHATSAPP OTP VERIFICATION ================= -->
+            <div id="step2OtpContainer" class="hidden space-y-4 pt-2">
+                
+                <div class="p-5 rounded-2xl bg-gradient-to-b from-emerald-950/40 via-slate-900/80 to-slate-900/90 border border-emerald-500/40 shadow-xl space-y-4">
+                    
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xl shrink-0">
+                            <i class="fa-brands fa-whatsapp"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <h3 class="text-sm font-bold text-white">WhatsApp සත්‍යාපනය (OTP Verification)</h3>
+                            <p class="text-xs text-slate-300">
+                                අංක <span id="dispTargetPhone" class="font-mono font-bold text-emerald-400">...</span> වෙත OTP කේතය එවන ලදී.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Simulation / Demo Mode Helper Box (Shown when gateway is in simulation mode) -->
+                    <div id="simulationOtpBadge" class="hidden p-3 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs">
+                        <div class="flex items-start space-x-2">
+                            <i class="fa-solid fa-circle-info text-amber-400 mt-0.5"></i>
+                            <div>
+                                <span class="font-bold">Test / Simulation Mode:</span>
+                                <span>ඔබගේ WhatsApp OTP කේතය: </span>
+                                <strong id="simulatedOtpCode" class="font-mono text-base text-yellow-300 tracking-wider">------</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- OTP Code Input -->
+                    <div>
+                        <label for="otpCodeInput" class="block text-xs font-semibold text-slate-300 mb-1.5 text-center uppercase tracking-wider">
+                            ඉලක්කම් 6ක OTP කේතය ඇතුල් කරන්න (Enter 6-digit OTP):
+                        </label>
+                        <input type="text" id="otpCodeInput" name="otp" maxlength="6" inputmode="numeric" autocomplete="one-time-code"
+                            placeholder="• • • • • •"
+                            class="w-full py-3 px-4 rounded-xl bg-slate-950 border-2 border-emerald-500/60 text-white font-mono font-extrabold text-2xl tracking-[0.4em] text-center placeholder-slate-600 focus:outline-none focus:ring-4 focus:ring-emerald-500/30 focus:border-emerald-400 transition-all">
+                        <p class="text-[11px] text-slate-400 text-center mt-1.5">
+                            මිනිත්තු 10ක් ඇතුළත මෙම කේතය වලංගු වේ (Valid for 10 minutes).
+                        </p>
+                    </div>
+
+                    <!-- Verify Button -->
+                    <button type="button" id="btnVerifyAndSubmit"
+                        class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm tracking-wide shadow-xl shadow-emerald-500/30 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-circle-check text-base"></i>
+                        <span>තහවුරු කර ලියාපදිංචි වන්න (Verify & Register)</span>
+                    </button>
+
+                    <!-- Resend OTP & Edit Number Controls -->
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+                        <button type="button" id="btnBackToStep1" class="text-slate-400 hover:text-white transition-colors flex items-center space-x-1">
+                            <i class="fa-solid fa-pen-to-square text-[10px]"></i>
+                            <span>අංකය වෙනස් කරන්න (Edit)</span>
+                        </button>
+
+                        <div>
+                            <span id="resendCountdownContainer" class="text-slate-400">
+                                නැවත යවන්න (<span id="resendTimerText" class="font-mono text-emerald-400 font-bold">60</span>s)
+                            </span>
+                            <button type="button" id="btnResendOtp" class="hidden text-emerald-400 hover:text-emerald-300 font-bold underline transition-colors">
+                                <i class="fa-solid fa-rotate-right mr-1"></i>නැවත OTP යවන්න
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
             </div>
+
         </form>
 
         <div class="mt-6 pt-4 border-t border-slate-800 text-center">
@@ -91,4 +212,267 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const idInput = document.getElementById("id_number");
+    const whatsappInput = document.getElementById("whatsapp");
+    const usernameInput = document.getElementById("username");
+    const step1Fields = document.getElementById("step1Fields");
+    const step2OtpContainer = document.getElementById("step2OtpContainer");
+    const registerAlert = document.getElementById("registerAlert");
+
+    const idDupWarning = document.getElementById("idDuplicateWarning");
+    const idDupMsg = document.getElementById("idDuplicateMsg");
+    const whatsappDupWarning = document.getElementById("whatsappDuplicateWarning");
+    const whatsappDupMsg = document.getElementById("whatsappDuplicateMsg");
+
+    const btnRequestOtp = document.getElementById("btnRequestOtp");
+    const btnVerifyAndSubmit = document.getElementById("btnVerifyAndSubmit");
+    const btnBackToStep1 = document.getElementById("btnBackToStep1");
+    const btnResendOtp = document.getElementById("btnResendOtp");
+    const otpCodeInput = document.getElementById("otpCodeInput");
+
+    const dispTargetPhone = document.getElementById("dispTargetPhone");
+    const simulationOtpBadge = document.getElementById("simulationOtpBadge");
+    const simulatedOtpCode = document.getElementById("simulatedOtpCode");
+    const resendCountdownContainer = document.getElementById("resendCountdownContainer");
+    const resendTimerText = document.getElementById("resendTimerText");
+
+    let resendInterval = null;
+    let duplicateCheckTimeout = null;
+
+    // --- 1. Live Duplicate Checking as User Types ---
+    function triggerDuplicateCheck() {
+        clearTimeout(duplicateCheckTimeout);
+        duplicateCheckTimeout = setTimeout(async () => {
+            const idVal = idInput.value.trim();
+            const phoneVal = whatsappInput.value.trim();
+
+            if (!idVal && !phoneVal) {
+                hideDuplicateWarnings();
+                return;
+            }
+
+            try {
+                const res = await fetch("{{ url_for('api_check_duplicate') }}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id_number: idVal, whatsapp: phoneVal })
+                });
+                const data = await res.json();
+
+                if (data.is_duplicate) {
+                    if (data.field === "id_number") {
+                        idDupWarning.classList.remove("hidden");
+                        idDupMsg.textContent = data.message;
+                        idInput.classList.add("border-rose-500", "focus:ring-rose-500");
+                        whatsappDupWarning.classList.add("hidden");
+                    } else if (data.field === "whatsapp") {
+                        whatsappDupWarning.classList.remove("hidden");
+                        whatsappDupMsg.textContent = data.message;
+                        whatsappInput.classList.add("border-rose-500", "focus:ring-rose-500");
+                        idDupWarning.classList.add("hidden");
+                    }
+                } else {
+                    hideDuplicateWarnings();
+                }
+            } catch (e) {
+                console.error("Duplicate check error:", e);
+            }
+        }, 500);
+    }
+
+    function hideDuplicateWarnings() {
+        idDupWarning.classList.add("hidden");
+        idInput.classList.remove("border-rose-500", "focus:ring-rose-500");
+        whatsappDupWarning.classList.add("hidden");
+        whatsappInput.classList.remove("border-rose-500", "focus:ring-rose-500");
+    }
+
+    idInput.addEventListener("input", triggerDuplicateCheck);
+    whatsappInput.addEventListener("input", triggerDuplicateCheck);
+
+    // --- 2. Request WhatsApp OTP ---
+    btnRequestOtp.addEventListener("click", async function() {
+        const username = usernameInput.value.trim();
+        const id_number = idInput.value.trim();
+        const whatsapp = whatsappInput.value.trim();
+        const ageCatEl = document.querySelector('input[name="age_category"]:checked');
+        const age_category = ageCatEl ? ageCatEl.value : "";
+
+        if (!username || !id_number || !whatsapp || !age_category) {
+            showAlert("danger", "කරුණාකර සියලු විස්තර නිවැරදිව පුරවන්න. (Please fill in all required fields).");
+            return;
+        }
+
+        btnRequestOtp.disabled = true;
+        btnRequestOtp.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>OTP කේතය සකසමින්...';
+
+        try {
+            const res = await fetch("{{ url_for('api_otp_send') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, id_number, whatsapp, age_category })
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                if (data.is_duplicate) {
+                    if (data.duplicate_field === "id_number") {
+                        idDupWarning.classList.remove("hidden");
+                        idDupMsg.textContent = data.message;
+                        idInput.classList.add("border-rose-500");
+                        idInput.focus();
+                    } else {
+                        whatsappDupWarning.classList.remove("hidden");
+                        whatsappDupMsg.textContent = data.message;
+                        whatsappInput.classList.add("border-rose-500");
+                        whatsappInput.focus();
+                    }
+                }
+                showAlert("danger", data.message || "OTP යැවීම අසාර්ථක විය. නැවත උත්සාහ කරන්න.");
+                btnRequestOtp.disabled = false;
+                btnRequestOtp.innerHTML = '<i class="fa-brands fa-whatsapp text-lg"></i><span>WhatsApp OTP ලබාගන්න (Send OTP)</span> <i class="fa-solid fa-arrow-right text-xs ml-1"></i>';
+                return;
+            }
+
+            // If admin has disabled WhatsApp OTP, it immediately redirects!
+            if (data.otp_required === false && data.redirect) {
+                showAlert("success", "ලියාපදිංචිය සාර්ථකයි! Redirecting...");
+                setTimeout(() => window.location.href = data.redirect, 800);
+                return;
+            }
+
+            // Success -> Show Step 2 OTP View
+            hideAlert();
+            dispTargetPhone.textContent = data.phone_formatted || whatsapp;
+
+            if (data.is_simulation && data.simulated_otp) {
+                simulationOtpBadge.classList.remove("hidden");
+                simulatedOtpCode.textContent = data.simulated_otp;
+                otpCodeInput.value = data.simulated_otp; // Auto-fill in simulation mode for instant convenience
+            } else {
+                simulationOtpBadge.classList.add("hidden");
+            }
+
+            // Lock Step 1 fields
+            idInput.readOnly = true;
+            whatsappInput.readOnly = true;
+            usernameInput.readOnly = true;
+
+            step1Fields.classList.add("opacity-50", "pointer-events-none");
+            step2OtpContainer.classList.remove("hidden");
+            startResendTimer(60);
+
+            otpCodeInput.focus();
+            window.scrollTo({ top: step2OtpContainer.offsetTop - 50, behavior: 'smooth' });
+
+        } catch (e) {
+            console.error(e);
+            showAlert("danger", "සම්බන්ධතා දෝෂයකි. කරුණාකර නැවත උත්සාහ කරන්න. (Connection error).");
+        } finally {
+            btnRequestOtp.disabled = false;
+            btnRequestOtp.innerHTML = '<i class="fa-brands fa-whatsapp text-lg"></i><span>WhatsApp OTP ලබාගන්න (Send OTP)</span> <i class="fa-solid fa-arrow-right text-xs ml-1"></i>';
+        }
+    });
+
+    // --- 3. Verify OTP & Final Registration ---
+    btnVerifyAndSubmit.addEventListener("click", async function() {
+        const username = usernameInput.value.trim();
+        const id_number = idInput.value.trim();
+        const whatsapp = whatsappInput.value.trim();
+        const ageCatEl = document.querySelector('input[name="age_category"]:checked');
+        const age_category = ageCatEl ? ageCatEl.value : "";
+        const otp = otpCodeInput.value.trim();
+
+        if (!otp || otp.length < 4) {
+            showAlert("danger", "කරුණාකර ඉලක්කම් 6ක WhatsApp OTP කේතය ඇතුල් කරන්න.");
+            otpCodeInput.focus();
+            return;
+        }
+
+        btnVerifyAndSubmit.disabled = true;
+        btnVerifyAndSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>සත්‍යාපනය කරමින්...';
+
+        try {
+            const res = await fetch("{{ url_for('api_otp_verify_and_register') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, id_number, whatsapp, age_category, otp })
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                showAlert("danger", data.message || "OTP සත්‍යාපනය අසාර්ථක විය.");
+                btnVerifyAndSubmit.disabled = false;
+                btnVerifyAndSubmit.innerHTML = '<i class="fa-solid fa-circle-check text-base"></i><span>තහවුරු කර ලියාපදිංචි වන්න (Verify & Register)</span>';
+                otpCodeInput.focus();
+                return;
+            }
+
+            showAlert("success", "OTP තහවුරු විය! ලියාපදිංචිය සාර්ථකයි. (Redirecting...)");
+            setTimeout(() => {
+                window.location.href = data.redirect;
+            }, 800);
+
+        } catch (e) {
+            console.error(e);
+            showAlert("danger", "දෝෂයක් සිදුවිය. කරුණාකර නැවත උත්සාහ කරන්න.");
+            btnVerifyAndSubmit.disabled = false;
+            btnVerifyAndSubmit.innerHTML = '<i class="fa-solid fa-circle-check text-base"></i><span>තහවුරු කර ලියාපදිංචි වන්න (Verify & Register)</span>';
+        }
+    });
+
+    // --- 4. Back / Change Number Button ---
+    btnBackToStep1.addEventListener("click", function() {
+        step2OtpContainer.classList.add("hidden");
+        step1Fields.classList.remove("opacity-50", "pointer-events-none");
+        idInput.readOnly = false;
+        whatsappInput.readOnly = false;
+        usernameInput.readOnly = false;
+        whatsappInput.focus();
+        clearInterval(resendInterval);
+    });
+
+    // --- 5. Resend OTP Button ---
+    btnResendOtp.addEventListener("click", function() {
+        btnRequestOtp.click();
+    });
+
+    function startResendTimer(seconds) {
+        clearInterval(resendInterval);
+        btnResendOtp.classList.add("hidden");
+        resendCountdownContainer.classList.remove("hidden");
+        let remaining = seconds;
+        resendTimerText.textContent = remaining;
+
+        resendInterval = setInterval(() => {
+            remaining--;
+            resendTimerText.textContent = remaining;
+            if (remaining <= 0) {
+                clearInterval(resendInterval);
+                resendCountdownContainer.classList.add("hidden");
+                btnResendOtp.classList.remove("hidden");
+            }
+        }, 1000);
+    }
+
+    function showAlert(type, msg) {
+        registerAlert.classList.remove("hidden", "bg-rose-950/70", "border-rose-500/50", "text-rose-200", "bg-emerald-950/70", "border-emerald-500/50", "text-emerald-200");
+        if (type === "danger") {
+            registerAlert.classList.add("bg-rose-950/70", "border-rose-500/50", "text-rose-200");
+            registerAlert.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2 text-rose-400"></i><strong>${msg}</strong>`;
+        } else {
+            registerAlert.classList.add("bg-emerald-950/70", "border-emerald-500/50", "text-emerald-200");
+            registerAlert.innerHTML = `<i class="fa-solid fa-circle-check mr-2 text-emerald-400"></i><strong>${msg}</strong>`;
+        }
+        registerAlert.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    function hideAlert() {
+        registerAlert.classList.add("hidden");
+    }
+</script>
 {% endblock %}

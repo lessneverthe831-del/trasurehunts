@@ -94,7 +94,24 @@ def init_db():
             added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS otp_verifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            whatsapp TEXT NOT NULL,
+            id_number TEXT,
+            otp_code TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            attempts INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL
+        );
         """)
+
+        # Migration: Ensure is_phone_verified column in users table
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN is_phone_verified INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass # already exists
 
         # Seed Settings if not present
         cur = conn.cursor()
@@ -113,6 +130,23 @@ def init_db():
                 "6. තරඟ නීති උල්ලංඝනය කරන අය තරඟයෙන් ඉවත් කෙරේ. විනිසුරු මණ්ඩලයේ තීරණය අවසන් තීරණය වේ. (Fair play is mandatory. Judges' decision is final.)"
             )
             cur.execute("INSERT INTO settings (key, value) VALUES ('terms_conditions', ?)", (default_terms,))
+
+        # Seed WhatsApp Gateway Settings if not present
+        whatsapp_defaults = [
+            ("whatsapp_otp_enabled", "true"),
+            ("whatsapp_gateway_type", "simulation"),
+            ("whatsapp_api_token", ""),
+            ("whatsapp_phone_number_id", ""),
+            ("whatsapp_account_sid", ""),
+            ("whatsapp_instance_id", ""),
+            ("whatsapp_sender_number", ""),
+            ("whatsapp_custom_url", ""),
+            ("whatsapp_msg_template", "ඔබගේ Treasure Hunt ලියාපදිංචි OTP කේතය: {otp} වේ. මෙය කිසිවෙකු සමඟ බෙදා නොගන්න. (Your Scavenger Hunt registration OTP is: {otp}).")
+        ]
+        for k, v in whatsapp_defaults:
+            cur.execute("SELECT value FROM settings WHERE key = ?", (k,))
+            if not cur.fetchone():
+                cur.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (k, v))
 
         # Seed initial question bank if empty
         cur.execute("SELECT COUNT(*) as cnt FROM questions")
@@ -272,25 +306,85 @@ def verify_master_pin(entered_pin: str) -> bool:
 # User Functions
 # -------------------------------------------------------------
 
-def create_user(username: str, id_number: str, whatsapp: str, age_category: str, ip: str = None) -> int:
+def check_duplicate_user(id_number: str, whatsapp: str, exclude_user_id: int = None):
+    """
+    Checks if a user with the given ID number or WhatsApp number already exists.
+    Returns (is_duplicate: bool, field: str, message: str)
+    """
+    import re
+
+    def _norm_phone(p):
+        d = re.sub(r"\D", "", str(p or "").strip())
+        if d.startswith("94") and len(d) == 11:
+            d = "0" + d[2:]
+        elif d.startswith("0") and len(d) == 10:
+            pass
+        elif len(d) == 9 and not d.startswith("0"):
+            d = "0" + d
+        return d
+
+    def _norm_id(i):
+        return re.sub(r"\s+", "", str(i or "").strip()).upper()
+
+    clean_id = _norm_id(id_number)
+    clean_phone = _norm_phone(whatsapp)
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, username, id_number, whatsapp FROM users")
+    all_users = cur.fetchall()
+    conn.close()
+
+    for u in all_users:
+        if exclude_user_id and u["id"] == exclude_user_id:
+            continue
+
+        # Check National / University ID number
+        if clean_id and _norm_id(u["id_number"]) == clean_id:
+            return True, "id_number", f"මෙම හැඳුනුම්පත් / විශ්වවිද්‍යාල අංකය ({id_number}) දැනටමත් ලියාපදිංචි කර ඇත. එක් අයෙකුට ලියාපදිංචි විය හැක්කේ එක් වරක් පමණි. (This ID number is already registered)."
+
+        # Check WhatsApp phone number
+        if clean_phone and _norm_phone(u["whatsapp"]) == clean_phone:
+            return True, "whatsapp", f"මෙම WhatsApp අංකය ({whatsapp}) දැනටමත් ලියාපදිංචි කර ඇත. කරුණාකර වෙනත් අංකයක් භාවිතා කරන්න. (This WhatsApp number is already registered)."
+
+    return False, "", ""
+
+
+def create_user(username: str, id_number: str, whatsapp: str, age_category: str, ip: str = None, is_phone_verified: int = 1) -> int:
     conn = get_db()
     with conn:
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO users (username, id_number, whatsapp, age_category, status, ip_address)
-            VALUES (?, ?, ?, ?, 'waiting_approval', ?)
-        """, (username.strip(), id_number.strip(), whatsapp.strip(), age_category.strip(), ip))
+            INSERT INTO users (username, id_number, whatsapp, age_category, status, ip_address, is_phone_verified)
+            VALUES (?, ?, ?, ?, 'waiting_approval', ?, ?)
+        """, (username.strip(), id_number.strip(), whatsapp.strip(), age_category.strip(), ip, is_phone_verified))
         user_id = cur.lastrowid
     conn.close()
 
     age_label = "18ට අඩු (Under 18)" if age_category == "under_18" else "18ට වැඩි (18+)"
+    phone_label = "තහවුරු විය (Verified ✓)" if is_phone_verified else "තහවුරු කර නැත"
     log_user_activity(
         user_id=user_id,
         action_type="registered",
         title="ලියාපදිංචි විය (Registered for Treasure Hunt)",
-        description=f"තරඟකරු ලියාපදිංචි වී Admin අනුමැතිය අපේක්ෂාවෙන් රැඳී සිටියි. (ID: {id_number}, WhatsApp: {whatsapp}, වයස: {age_label})"
+        description=f"තරඟකරු ලියාපදිංචි වී Admin අනුමැතිය අපේක්ෂාවෙන් රැඳී සිටියි. (ID: {id_number}, WhatsApp: {whatsapp} [{phone_label}], වයස: {age_label})"
     )
     return user_id
+
+
+def get_recent_otps(limit: int = 50):
+    """
+    Returns the most recent OTP verifications for the Admin monitor.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT * FROM otp_verifications
+        ORDER BY id DESC LIMIT ?
+    """, (limit,))
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def get_user_by_id(user_id: int):

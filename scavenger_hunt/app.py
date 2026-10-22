@@ -11,6 +11,7 @@ from qrcode.image.pil import PilImage
 
 from config import SECRET_KEY, DEFAULT_MASTER_PIN
 import database
+import whatsapp_service
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -78,6 +79,112 @@ def index():
     return redirect(url_for("register"))
 
 
+@app.route("/api/check-duplicate", methods=["POST"])
+def api_check_duplicate():
+    data = request.get_json(silent=True) or {}
+    id_number = data.get("id_number", "").strip()
+    whatsapp = data.get("whatsapp", "").strip()
+
+    is_dup, field, message = database.check_duplicate_user(id_number, whatsapp)
+    return jsonify({
+        "is_duplicate": is_dup,
+        "field": field,
+        "message": message
+    })
+
+
+@app.route("/api/otp/send", methods=["POST"])
+def api_otp_send():
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    id_number = data.get("id_number", "").strip()
+    whatsapp = data.get("whatsapp", "").strip()
+    age_category = data.get("age_category", "").strip()
+
+    if not username or not id_number or not whatsapp or not age_category:
+        return jsonify({
+            "success": False,
+            "message": "කරුණාකර සියලු විස්තර නිවැරදිව පුරවන්න. (Please fill in all required fields)."
+        }), 400
+
+    if age_category not in ["under_18", "18_plus"]:
+        return jsonify({
+            "success": False,
+            "message": "වලංගු වයස් කාණ්ඩයක් තෝරන්න. (Invalid age category)."
+        }), 400
+
+    # 1. Check for duplicates in DB
+    is_dup, field, message = database.check_duplicate_user(id_number, whatsapp)
+    if is_dup:
+        return jsonify({
+            "success": False,
+            "is_duplicate": True,
+            "duplicate_field": field,
+            "message": message
+        }), 409
+
+    # 2. Check if WhatsApp OTP requirement is enabled
+    otp_enabled = database.get_setting("whatsapp_otp_enabled", "true") == "true"
+    if not otp_enabled:
+        # If OTP is disabled by admin, skip OTP step and register directly
+        ip = get_client_ip()
+        user_id = database.create_user(username, id_number, whatsapp, age_category, ip, is_phone_verified=0)
+        session["user_id"] = user_id
+        session["username"] = username
+        return jsonify({
+            "success": True,
+            "otp_required": False,
+            "redirect": url_for("waiting")
+        })
+
+    # 3. Generate & Dispatch OTP
+    res = whatsapp_service.generate_and_send_otp(whatsapp, id_number)
+    return jsonify(res)
+
+
+@app.route("/api/otp/verify-and-register", methods=["POST"])
+def api_otp_verify_and_register():
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    id_number = data.get("id_number", "").strip()
+    whatsapp = data.get("whatsapp", "").strip()
+    age_category = data.get("age_category", "").strip()
+    otp_code = data.get("otp", "").strip()
+
+    if not username or not id_number or not whatsapp or not age_category or not otp_code:
+        return jsonify({
+            "success": False,
+            "message": "සියලු තොරතුරු සහ OTP කේතය ඇතුල් කරන්න. (All fields and OTP are required)."
+        }), 400
+
+    # 1. Final duplicate check
+    is_dup, field, message = database.check_duplicate_user(id_number, whatsapp)
+    if is_dup:
+        return jsonify({
+            "success": False,
+            "is_duplicate": True,
+            "duplicate_field": field,
+            "message": message
+        }), 409
+
+    # 2. Verify OTP
+    v_res = whatsapp_service.verify_otp_code(whatsapp, otp_code)
+    if not v_res.get("success"):
+        return jsonify(v_res), 400
+
+    # 3. Create user in DB
+    ip = get_client_ip()
+    user_id = database.create_user(username, id_number, whatsapp, age_category, ip, is_phone_verified=1)
+    session["user_id"] = user_id
+    session["username"] = username
+
+    return jsonify({
+        "success": True,
+        "message": "ලියාපදිංචිය සාර්ථකයි! (Registration successful).",
+        "redirect": url_for("waiting")
+    })
+
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "GET":
@@ -90,6 +197,7 @@ def register():
     id_number = request.form.get("id_number", "").strip()
     whatsapp = request.form.get("whatsapp", "").strip()
     age_category = request.form.get("age_category", "").strip()
+    otp_code = request.form.get("otp", "").strip()
 
     if not username or not id_number or not whatsapp or not age_category:
         flash("කරුණාකර සියලු විස්තර නිවැරදිව පුරවන්න. (Please fill in all required fields).", "danger")
@@ -99,8 +207,25 @@ def register():
         flash("වලංගු වයස් කාණ්ඩයක් තෝරන්න. (Please select a valid age category).", "danger")
         return render_template("register.html", form=request.form)
 
+    # Check duplicates
+    is_dup, field, dup_msg = database.check_duplicate_user(id_number, whatsapp)
+    if is_dup:
+        flash(dup_msg, "danger")
+        return render_template("register.html", form=request.form)
+
+    otp_enabled = database.get_setting("whatsapp_otp_enabled", "true") == "true"
+    if otp_enabled:
+        if not otp_code:
+            flash("WhatsApp OTP කේතය ඇතුල් කිරීම අනිවාර්ය වේ. (WhatsApp OTP verification required).", "warning")
+            return render_template("register.html", form=request.form, require_otp=True)
+
+        v_res = whatsapp_service.verify_otp_code(whatsapp, otp_code)
+        if not v_res.get("success"):
+            flash(v_res.get("message"), "danger")
+            return render_template("register.html", form=request.form, require_otp=True)
+
     ip = get_client_ip()
-    user_id = database.create_user(username, id_number, whatsapp, age_category, ip)
+    user_id = database.create_user(username, id_number, whatsapp, age_category, ip, is_phone_verified=1 if otp_enabled else 0)
     session["user_id"] = user_id
     session["username"] = username
 
@@ -342,6 +467,19 @@ def admin_dashboard():
     terms = database.get_setting("terms_conditions")
     master_pin = database.get_setting("master_pin", DEFAULT_MASTER_PIN)
 
+    whatsapp_settings = {
+        "enabled": database.get_setting("whatsapp_otp_enabled", "true") == "true",
+        "gateway_type": database.get_setting("whatsapp_gateway_type", "simulation"),
+        "api_token": database.get_setting("whatsapp_api_token", ""),
+        "phone_number_id": database.get_setting("whatsapp_phone_number_id", ""),
+        "account_sid": database.get_setting("whatsapp_account_sid", ""),
+        "instance_id": database.get_setting("whatsapp_instance_id", ""),
+        "sender_number": database.get_setting("whatsapp_sender_number", ""),
+        "custom_url": database.get_setting("whatsapp_custom_url", ""),
+        "msg_template": database.get_setting("whatsapp_msg_template", "ඔබගේ Treasure Hunt ලියාපදිංචි OTP කේතය: {otp} වේ. මෙය කිසිවෙකු සමඟ බෙදා නොගන්න. (Your Scavenger Hunt registration OTP is: {otp}).")
+    }
+    recent_otps = database.get_recent_otps(30)
+
     stats = {
         "total": len(users),
         "waiting": sum(1 for u in users if u["status"] == "waiting_approval"),
@@ -357,6 +495,8 @@ def admin_dashboard():
         qr_codes=qr_codes,
         terms=terms,
         master_pin=master_pin,
+        whatsapp_settings=whatsapp_settings,
+        recent_otps=recent_otps,
         stats=stats
     )
 
@@ -491,6 +631,38 @@ def api_admin_change_pin():
 
     database.set_setting("master_pin", new_pin)
     return jsonify({"success": True, "message": "Master PIN updated successfully."})
+
+
+@app.route("/api/admin/settings/whatsapp", methods=["POST"])
+@require_admin
+def api_admin_settings_whatsapp():
+    data = request.get_json(silent=True) or request.form.to_dict()
+    
+    database.set_setting("whatsapp_otp_enabled", "true" if data.get("enabled") in [True, "true", "1", "on"] else "false")
+    database.set_setting("whatsapp_gateway_type", data.get("gateway_type", "simulation").strip())
+    database.set_setting("whatsapp_api_token", data.get("api_token", "").strip())
+    database.set_setting("whatsapp_phone_number_id", data.get("phone_number_id", "").strip())
+    database.set_setting("whatsapp_account_sid", data.get("account_sid", "").strip())
+    database.set_setting("whatsapp_instance_id", data.get("instance_id", "").strip())
+    database.set_setting("whatsapp_sender_number", data.get("sender_number", "").strip())
+    database.set_setting("whatsapp_custom_url", data.get("custom_url", "").strip())
+    if data.get("msg_template"):
+        database.set_setting("whatsapp_msg_template", data.get("msg_template", "").strip())
+
+    return jsonify({"success": True, "message": "WhatsApp Gateway settings updated successfully."})
+
+
+@app.route("/api/admin/settings/whatsapp/test", methods=["POST"])
+@require_admin
+def api_admin_settings_whatsapp_test():
+    data = request.get_json(silent=True) or request.form.to_dict()
+    phone = data.get("phone", "").strip()
+    if not phone:
+        return jsonify({"success": False, "message": "Please enter a test phone number."}), 400
+
+    test_msg = "Treasure Hunt Admin: WhatsApp Gateway Test Message Success! 🏆"
+    res = whatsapp_service.send_whatsapp_message(phone, test_msg)
+    return jsonify(res)
 
 
 # -------------------------------------------------------------

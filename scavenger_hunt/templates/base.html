@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ page_title if page_title else "Treasure Hunt Challenge" }}</title>
+    <!-- Favicon (Treasure Gem) -->
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -68,6 +72,16 @@
             </a>
 
             <div class="flex items-center space-x-3">
+                <!-- Official Sponsor Pill -->
+                <a href="https://celeste.lk" target="_blank" rel="noopener noreferrer"
+                    class="hidden md:flex items-center space-x-2 bg-slate-900/90 hover:bg-slate-800 border border-amber-500/30 px-3 py-1.5 rounded-full text-xs transition-all shadow-sm group"
+                    title="Official Sponsor: Celeste Daily (celeste.lk)">
+                    <span class="text-[9px] text-amber-400 font-extrabold uppercase tracking-wider">Sponsor</span>
+                    <img src="{{ url_for('static', filename='celeste_dark.png') }}" alt="Celeste" class="h-4 bg-white px-1 py-0.5 rounded object-contain">
+                    <span class="text-slate-300 font-semibold group-hover:text-amber-300">celeste.lk</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[9px] text-amber-400"></i>
+                </a>
+
                 {% if session.get('user_id') %}
                 <div class="hidden sm:flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700 text-xs">
                     <i class="fa-solid fa-user text-brand-400"></i>
@@ -128,8 +142,17 @@
     </main>
 
     <!-- Footer -->
-    <footer class="border-t border-slate-900 py-4 text-center text-xs text-slate-500">
-        <p>© 2026 Treasure Hunt Challenge • QR Quest Platform • All Rights Reserved</p>
+    <footer class="border-t border-slate-900 py-6 text-center text-xs text-slate-500 space-y-2">
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+            <span class="text-slate-400">Official Event Partner & Sponsor:</span>
+            <a href="https://celeste.lk" target="_blank" rel="noopener noreferrer"
+                class="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 px-3 py-1 rounded-full text-slate-300 transition-all">
+                <img src="{{ url_for('static', filename='celeste_dark.png') }}" alt="Celeste Daily" class="h-4 bg-white px-1 rounded object-contain">
+                <span class="font-bold text-amber-300">celeste.lk</span>
+                <i class="fa-solid fa-arrow-up-right-from-square text-[9px] text-slate-400"></i>
+            </a>
+        </div>
+        <p>© 2026 Treasure Hunt (නිධන් සෙවුම) • All Rights Reserved</p>
     </footer>
 
     {% block extra_scripts %}{% endblock %}
