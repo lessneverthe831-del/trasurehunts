@@ -7,4 +7,4 @@ DATABASE_PATH = os.path.join(BASE_DIR, "scavenger_hunt.db")
 SECRET_KEY = os.environ.get("SECRET_KEY", "scavenger-hunt-secret-key-2026-xyz")
 
 # Master PIN for Admin access
-DEFAULT_MASTER_PIN = os.environ.get("ADMIN_PIN", "1234")
+DEFAULT_MASTER_PIN = os.environ.get("ADMIN_PIN", "3102")

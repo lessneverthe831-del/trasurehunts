@@ -122,12 +122,12 @@ def init_db():
         cur.execute("SELECT value FROM settings WHERE key = 'terms_conditions'")
         if not cur.fetchone():
             default_terms = (
-                "1. සියලු තරඟකරුවන් Treasure Hunt (නිධන් සෙවුම) පරිශ්‍රය තුළ විසිරී ඇති රහස් ඉඟි (Clues) ඔස්සේ නිවැරදි QR කේත 5 අනුපිළිවෙලින් එකින් එක සොයා ස්කෑන් කළ යුතුය. (Participants must solve the clues to find and scan all 5 target QR codes sequentially, one by one.)\n"
-                "2. පළමු ඉඟිය සොයා ස්කෑන් කළ පසු දෙවන ඉඟියද, දෙවැන්නෙන් පසු තෙවැන්නද වශයෙන් පිළිවෙලින් විවෘත වේ. (Clues unlock progressively one after the other).\n"
-                "3. QR පුවරු හෝ සලකුණු වලට හානි කිරීම, ගැලවීම හෝ විකෘති කිරීම සපුරා තහනම්ය. (Do not tamper with or remove QR placards.)\n"
-                "4. වැරදි හෝ උපක්‍රමශීලී (Trap / Decoy) QR කේත පරිශ්‍රයේ ස්ථාපිත කර ඇති බැවින් ඒවා ස්කෑන් කිරීමෙන් වළකින්න. (Beware of trap / wrong QR codes.)\n"
-                "5. QR ස්කෑන් අංශයට පිවිසීමට පෙර ප්‍රශ්න 5ටම නිවැරදි පිළිතුරු (5/5) ලබා දිය යුතුය. එකක් හෝ වැරදුනහොත් නව ප්‍රශ්න 5ක් සමඟ නැවත උත්සාහ කළ යුතුය. (All 5 questions must be answered correctly. Any wrong answer will assign 5 fresh randomized questions on retry.)\n"
-                "6. තරඟ නීති උල්ලංඝනය කරන අය තරඟයෙන් ඉවත් කෙරේ. විනිසුරු මණ්ඩලයේ තීරණය අවසන් තීරණය වේ. (Fair play is mandatory. Judges' decision is final.)"
+                "💠Treasure Hunt තරඟ නීති සහ සහභාගීත්ව ගිවිසුම \n"
+                "    (Treasure Hunt Rules & Participation Agreement)\n\n\n"
+                "⭕වංචා කිරීමෙන්, QR කේතවලට හානි කිරීමෙන් හෝ වෙනස් කිරීමෙන් සහ සීමා කර ඇති ඉඟි වෙනත් සහභාගිවන්නන් සමඟ බෙදාගැනීමෙන් වළකින්න.(Do not cheat, tamper with QR codes, or share restricted clues.)\n\n"
+                "⭕විශ්වවිද්‍යාල දේපළ, ප්‍රදර්ශන කුටි සහ අනෙකුත් සහභාගිවන්නන්ට ගරු කරන්න.(Respect university property, exhibition stalls, and other participants.)\n\n"
+                "⭕නිධන් සෙවීමේ ක්‍රීඩාව සාර්ථකව සම්පූර්ණ කරන පළමු සුදුසුකම්ලත් සහභාගිවන්නන් 50 දෙනාට ත්‍යාග හිමි වේ. ඔවුන් අවසන් දිනයේ පැවැත්වෙන දිනුම් ඇදීමට (Raffle Draw) ඇතුළත් කරනු ලැබේ.(The first 50 eligible participants who successfully complete the Treasure Hunt will qualify for gifts. These 50 participants will then be entered into a raffle draw held on the final day of the exhibition to determine the winners of the special prizes.)\n\n"
+                "⭕සහභාගිවන්නන්ගේ සුදුසුකම් සහ ක්‍රීඩාවේ ප්‍රතිඵල සම්බන්ධයෙන් සංවිධායක මණ්ඩලය ගනු ලබන තීරණ අවසාන තීරණ වේ.(The organizers’ decisions on eligibility and game results are final.)"
             )
             cur.execute("INSERT INTO settings (key, value) VALUES ('terms_conditions', ?)", (default_terms,))
 
@@ -222,22 +222,23 @@ def init_db():
                 VALUES (?, ?, ?, ?, ?, ?)
             """, initial_questions)
 
-        # Seed initial QR Codes (Targets & Traps) with mystery clues
+        # Seed initial QR Codes (Targets & Traps) from organizer setup
         cur.execute("SELECT COUNT(*) as cnt FROM qr_codes")
         if cur.fetchone()["cnt"] == 0:
             initial_qrs = [
-                # Valid Target QR codes (is_trap = 0)
-                ("TARGET-LIB-101", "පුස්තකාලය (Library Checkpoint)", "පොත්පත් දහස් ගණනක් නිහඬව නිදන තැනේ, 1 වන මහලේ පැරණි ඉතිහාස පොත් රාක්කය අසල සඟවා ඇත.", 0),
-                ("TARGET-LAB-202", "පරිගණක විද්‍යාගාරය (Computer Lab)", "පරිගණක තිර රැසක් සහ ප්‍රධාන සර්වර් පද්ධතියේ නිල් විදුලි බුබුළු දැල්වෙන ප්‍රධාන බිත්තිය අසල...", 0),
-                ("TARGET-CAN-303", "ආපනශාලාව (Cafeteria Hub)", "දිවා ආහාරයේ සහ තේ පැන් සුවඳ පැතිරෙන, බඩගින්න නිවන ස්ථානයේ ප්‍රධාන පිවිසුම් දොර අසල...", 0),
-                ("TARGET-AUD-404", "ශ්‍රවණාගාරය (Auditorium Hall)", "නාට්‍ය හා මහා උත්සව පැවැත්වෙන විශාල ශාලාවේ, ප්‍රධාන වේදිකාවේ දකුණු පස තීරය අසල...", 0),
-                ("TARGET-GRN-505", "ක්‍රීඩා පිටිය (Sports Grounds)", "ක්‍රීඩකයන් තරඟ වදින හරිත තණතීරුවේ, ප්‍රධාන ප්‍රේක්ෂකාගාරයේ (Pavilion) ආලෝක කුළුණ අසල...", 0),
-                ("TARGET-ADM-606", "පරිපාලන ගොඩනැගිල්ල (Admin Complex)", "ආයතනයේ සියලුම ලේඛන සහ කළමනාකරණ කටයුතු සිදුවන ගොඩනැගිල්ලේ 2 වන මහලේ දැන්වීම් පුවරුව යට...", 0),
-                ("TARGET-GTE-707", "ප්‍රධාන පිවිසුම් දොරටුව (Main Gate)", "ආයතනයට ඇතුල් වන සහ පිටවන සියලු දෙනා පරීක්ෂා කරන ආරක්ෂක නිලධාරී මුරපොළ ඉදිරිපිට...", 0),
-                # Trap / Wrong QR Codes (is_trap = 1)
-                ("TRAP-DEC-901", "අන්තරායකාරී උගුල (Trap: Decoy Alpha)", "උගුල් කේතයකි - ස්කෑන් නොකරන්න! (Danger: Trap Code)", 1),
-                ("TRAP-DEC-902", "වැරදි මාර්ගය (Trap: Wrong Route Beta)", "උගුල් කේතයකි - වැරදි මාර්ගයකි! (Trap: Wrong Route)", 1),
-                ("TRAP-DEC-903", "ව්‍යාජ ඉලක්කය (Trap: Fake Target Gamma)", "උගුල් කේතයකි - මෙය ව්‍යාජ ඉලක්කයකි! (Trap: Fake Target)", 1)
+                ("TRAP-DEC-901", "අන්තරායකාරී උගුල (Trap: Decoy Alpha)", "උගුල් කේතයකි - ස්කෑන් නොකරන්න!", 1),
+                ("TRAP-DEC-902", "වැරදි මාර්ගය (Trap: Wrong Route Beta)", "උගුල් කේතයකි - වැරදි මාර්ගයකි!", 1),
+                ("TRAP-DEC-903", "ව්‍යාජ ඉලක්කය (Trap: Fake Target Gamma)", "උගුල් කේතයකි - මෙය ව්‍යාජ ඉලක්කයකි!", 1),
+                ("TARGET P001", "BMart (Projector & CCTV)", "\"“One makes the unseen visible, another makes the invisible appear. One throws images onto a wall, the other keeps watch without standing tall. Find the place where both eyes and images serve a purpose.”\"  \"එකක් නොපෙනෙන දේ දකින්න උපකාරී වෙයි. අනෙක රූප බිත්තියක් මත දිස් කරයි. එකක් අවට සිදුවන දේ නිරීක්ෂණය කරයි, අනෙක අදහස් විශාල තිරයක් මත පෙන්වයි. මේ දෙකම තම කාර්යයට යොදාගන්නා ස්ථානය සොයාගන්න.\"", 0),
+                ("TARGET P002", "Smart Dustbin – Smart Dustbin Stall", "\"“I welcome what others throw away, but I may react before your hand touches me. I help keep our surroundings clean, using technology in an unexpected place. Find me where waste meets intelligence.”\"  \"අන් අය ඉවත දමන දේ මම භාරගනිමි. නමුත් සමහරවිට ඔබේ අත මා ස්පර්ශ කිරීමටත් පෙර මම ක්‍රියාත්මක වෙමි. තාක්ෂණය භාවිතයෙන් පරිසරය පිරිසිදුව තබාගැනීමට මම උදව් කරමි. අපද්‍රව්‍ය සහ බුද්ධිමත් තාක්ෂණය හමුවන ස්ථානය සොයාගන්න.\"", 0),
+                ("TARGET P003", "International Marine Services", "\"“I cross borders without passports and carry the world's business across the blue. My roads are waves, my highways are oceans, and my cargo connects distant lands. Find the stall that keeps global trade moving.”\"  \"මම ගමන් කරන්නේ දේශසීමා හරහාය, නමුත් මට ගමන් බලපත්‍රයක් අවශ්‍ය නැත. මගේ මාර්ගය සාගරයයි, මගේ මහාමාර්ගය රළ පහරයි. දුරස්ථ රටවල් අතර භාණ්ඩ ගෙනයමින් ලෝක වෙළෙඳාම සම්බන්ධ කරන්නේ මමයි. එම කාර්යය සිදුකරන ස්ථානය සොයාගන්න.\"", 0),
+                ("TARGET P004", "SmartLock.lk – Smart Door Locks", "\"“I guard an entrance without carrying a key in my pocket. A secret code, a touch, or a digital signal may grant you passage. Find the place where security gets smarter and the traditional key loses its power.”\"  \"මම දොරටුවක් ආරක්ෂා කරමි, නමුත් මගේ සාක්කුවේ යතුරක් නැත. රහස් අංකයක්, ස්පර්ශයක් හෝ ඩිජිටල් සංඥාවක් මඟින් මට දොර විවෘත කිරීමට අවසර දිය හැකිය. සාම්ප්‍රදායික යතුරට නව අභියෝගයක් එල්ල කරන බුද්ධිමත් ආරක්ෂාව සොයාගන්න.\"", 0),
+                ("TARGET P005", "DUSU Clothing", "\"“I have no voice, yet I express your identity. I change with trends, seasons, and moods, and I turn ordinary people into their own style statements. Find the place where fabric speaks without words.”\"  \" මට කතා කළ නොහැකි වුවත්, ඔබ කවුදැයි ලෝකයට පෙන්වීමට මට හැකිය. විලාසිතා, කාලගුණය සහ ඔබේ මනෝභාවය අනුව මම වෙනස් වෙමි. සාමාන්‍ය පෙනුමක් විශේෂ පෙනුමක් බවට පත් කරමි. රෙදිපිළි වචන නොමැතිව ඔබ වෙනුවෙන් කතා කරන ස්ථානය සොයාගන්න.\"", 0),
+                ("TARGET P006", "Innovation Lab – Hardware Museum", "\"“Before smart screens and clever software, there were the parts that made everything possible. I preserve the building blocks of digital progress, where yesterday's technology tells tomorrow's story. Find the place where machines reveal their past.”\"  \"බුද්ධිමත් තිර සහ දක්ෂ මෘදුකාංග බිහිවීමට පෙර, ඒවාට අවශ්‍ය මූලික කොටස් තිබුණි. ඩිජිටල් ලෝකයේ දියුණුව ගොඩනැඟූ තාක්ෂණික කොටස් මම රැකගනිමි. අතීතයේ යන්ත්‍ර අද දවසට කතා කරන, හෙට දවසේ තාක්ෂණයට මඟ පෙන්වන ස්ථානය සොයාගන්න.\"", 0),
+                ("TARGET P007", "Smart Classroom (Gaming Zone)", "\"“Here, lessons may feel like missions and controllers become your tools. You can enter another world without leaving this one, and compete without stepping onto a real field. Find the place where learning meets play.”\"  \"මෙහි පාඩම් මෙහෙයුම් බවටත්, පාලක උපකරණ ඔබේ මෙවලම් බවටත් පත්වේ. ඔබ සිටින ස්ථානයෙන් පිටතට නොගොස් වෙනත් ලෝකයකට පිවිසිය හැකිය. සැබෑ ක්‍රීඩා පිටියකට නොගොස් තරග කළ හැකිය. ඉගෙනීම සහ විනෝදය එකට හමුවන ස්ථානය සොයාගන්න\"", 0),
+                ("TARGET P008", "Studio – 3D Films and Live Demo", "\"“What seems flat may suddenly gain depth; what looks distant may feel close enough to touch. Behind the illusion are cameras, creativity, and technology. Find the place where moving images step beyond the ordinary screen.”\"  \"පැතලි දෙයක් ගැඹුරු බවක් ගනී. දුරින් පෙනෙන දෙයක් ඔබට ළඟින්ම ඇති බවක් දැනේ. මේ මායාව පිටුපස කැමරා, නිර්මාණශීලීත්වය සහ තාක්ෂණය ඇත. සාමාන්‍ය තිරයක සීමාවෙන් ඔබ්බට ගොස් රූප ජීවමාන වන ස්ථානය සොයාගන්න.\"", 0),
+                ("TARGET P009", "Lite Cinema (Film Company)", "\"“I turn moments into memories and stories into experiences. I need no book to tell a tale, yet millions may follow mine. Find the place where imagination meets the screen.”\"  \"මම මොහොතක් මතකයක් බවටත්, කතාවක් අත්දැකීමක් බවටත් පත් කරමි. පොතක් නොමැතිව කතා කියමි. මිලියන ගණනක් මගේ කතා සමඟ ගමන් කරති. පරිකල්පනය සහ තිරය එකට හමුවන ස්ථානය සොයාගන්න.\"", 0),
+                ("TRAP-DEC-904", "wrong qr -4", "Wrong Target", 1)
             ]
             cur.executemany("""
                 INSERT INTO qr_codes (code, title, hint, is_trap)
