@@ -470,12 +470,12 @@ def admin_dashboard():
     whatsapp_settings = {
         "enabled": database.get_setting("whatsapp_otp_enabled", "true") == "true",
         "gateway_type": database.get_setting("whatsapp_gateway_type", "simulation"),
-        "api_token": database.get_setting("whatsapp_api_token", ""),
-        "phone_number_id": database.get_setting("whatsapp_phone_number_id", ""),
-        "account_sid": database.get_setting("whatsapp_account_sid", ""),
-        "instance_id": database.get_setting("whatsapp_instance_id", ""),
+        "api_token": database.get_setting("whatsapp_api_token", "") or database.get_setting("greenapi_token", "") or database.get_setting("notifylk_api_key", ""),
+        "phone_number_id": database.get_setting("whatsapp_phone_number_id", "") or database.get_setting("greenapi_id_instance", "") or database.get_setting("notifylk_user_id", ""),
+        "account_sid": database.get_setting("whatsapp_account_sid", "") or database.get_setting("notifylk_sender_id", ""),
+        "instance_id": database.get_setting("whatsapp_instance_id", "") or database.get_setting("greenapi_id_instance", ""),
         "sender_number": database.get_setting("whatsapp_sender_number", ""),
-        "custom_url": database.get_setting("whatsapp_custom_url", ""),
+        "custom_url": database.get_setting("whatsapp_custom_url", "") or database.get_setting("greenapi_host", ""),
         "msg_template": database.get_setting("whatsapp_msg_template", "ඔබගේ Treasure Hunt ලියාපදිංචි OTP කේතය: {otp} වේ. මෙය කිසිවෙකු සමඟ බෙදා නොගන්න. (Your Scavenger Hunt registration OTP is: {otp}).")
     }
     recent_otps = database.get_recent_otps(30)
@@ -670,14 +670,25 @@ def api_admin_change_pin():
 def api_admin_settings_whatsapp():
     data = request.get_json(silent=True) or request.form.to_dict()
     
+    gw_type = data.get("gateway_type", "simulation").strip()
     database.set_setting("whatsapp_otp_enabled", "true" if data.get("enabled") in [True, "true", "1", "on"] else "false")
-    database.set_setting("whatsapp_gateway_type", data.get("gateway_type", "simulation").strip())
+    database.set_setting("whatsapp_gateway_type", gw_type)
     database.set_setting("whatsapp_api_token", data.get("api_token", "").strip())
     database.set_setting("whatsapp_phone_number_id", data.get("phone_number_id", "").strip())
     database.set_setting("whatsapp_account_sid", data.get("account_sid", "").strip())
     database.set_setting("whatsapp_instance_id", data.get("instance_id", "").strip())
     database.set_setting("whatsapp_sender_number", data.get("sender_number", "").strip())
     database.set_setting("whatsapp_custom_url", data.get("custom_url", "").strip())
+    if gw_type in ["green_api", "greenapi"]:
+        database.set_setting("greenapi_id_instance", data.get("phone_number_id", "").strip())
+        database.set_setting("greenapi_token", data.get("api_token", "").strip())
+        if data.get("custom_url"):
+            database.set_setting("greenapi_host", data.get("custom_url", "").strip())
+    elif gw_type in ["notifylk", "notify_lk"]:
+        database.set_setting("notifylk_user_id", data.get("phone_number_id", "").strip())
+        database.set_setting("notifylk_api_key", data.get("api_token", "").strip())
+        if data.get("account_sid"):
+            database.set_setting("notifylk_sender_id", data.get("account_sid", "").strip())
     if data.get("msg_template"):
         database.set_setting("whatsapp_msg_template", data.get("msg_template", "").strip())
 

@@ -248,6 +248,65 @@ def send_whatsapp_message(to_number: str, text: str) -> dict:
                 resp_data = resp.read().decode("utf-8")
                 return {"success": True, "mode": "ultramsg", "response": resp_data}
 
+        elif gateway_type in ["green_api", "greenapi"]:
+            id_instance = database.get_setting("greenapi_id_instance", "").strip() or database.get_setting("whatsapp_phone_number_id", "").strip() or database.get_setting("whatsapp_instance_id", "").strip()
+            api_token = database.get_setting("greenapi_token", "").strip() or database.get_setting("whatsapp_api_token", "").strip()
+            host_url = database.get_setting("greenapi_host", "").strip() or database.get_setting("whatsapp_custom_url", "").strip() or "https://api.green-api.com"
+            if not host_url.startswith("http"):
+                host_url = f"https://{host_url}"
+            host_url = host_url.rstrip("/")
+
+            if not id_instance or not api_token:
+                return {
+                    "success": False,
+                    "mode": "green_api",
+                    "message": "Green-API configuration missing: idInstance or apiTokenInstance."
+                }
+
+            # GreenAPI destination format: 947XXXXXXXX@c.us
+            chat_id = f"{int_phone_raw}@c.us"
+            url = f"{host_url}/waInstance{id_instance}/sendMessage/{api_token}"
+
+            payload = json.dumps({
+                "chatId": chat_id,
+                "message": text
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={"Content-Type": "application/json", "User-Agent": "TreasureHuntBot/1.0"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                resp_data = resp.read().decode("utf-8")
+                return {"success": True, "mode": "green_api", "response": resp_data}
+
+        elif gateway_type in ["notifylk", "notify_lk"]:
+            user_id = database.get_setting("notifylk_user_id", "").strip() or database.get_setting("whatsapp_account_sid", "").strip() or database.get_setting("whatsapp_phone_number_id", "").strip()
+            api_key = database.get_setting("notifylk_api_key", "").strip() or database.get_setting("whatsapp_api_token", "").strip()
+            sender_id = database.get_setting("notifylk_sender_id", "").strip() or "NotifyDEMO"
+
+            if not user_id or not api_key:
+                return {
+                    "success": False,
+                    "mode": "notifylk",
+                    "message": "Notify.lk configuration missing: User ID or API Key."
+                }
+
+            params = urllib.parse.urlencode({
+                "user_id": user_id,
+                "api_key": api_key,
+                "sender_id": sender_id,
+                "to": int_phone_raw,
+                "message": text
+            })
+            url = f"https://app.notify.lk/api/v1/send?{params}"
+            req = urllib.request.Request(url, headers={"User-Agent": "TreasureHuntBot/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                resp_data = resp.read().decode("utf-8")
+                return {"success": True, "mode": "notifylk", "response": resp_data}
+
         elif gateway_type == "custom_url":
             custom_url = database.get_setting("whatsapp_custom_url", "")
             if not custom_url:
@@ -279,13 +338,26 @@ def send_whatsapp_message(to_number: str, text: str) -> dict:
         print(f"[WHATSAPP HTTP ERROR] Status {he.code}: {err_body}")
         try:
             err_json = json.loads(err_body)
-            meta_msg = err_json.get("error", {}).get("message", err_body)
-            meta_code = err_json.get("error", {}).get("code", "")
+            err_msg = ""
+            err_code = str(he.code)
+            if isinstance(err_json, dict):
+                if isinstance(err_json.get("error"), dict):
+                    err_msg = err_json["error"].get("message")
+                    err_code = err_json["error"].get("code", str(he.code))
+                elif isinstance(err_json.get("error"), str):
+                    err_msg = err_json.get("error")
+                if not err_msg:
+                    err_msg = err_json.get("message") or err_json.get("description") or err_body
+                if "statusCode" in err_json:
+                    err_code = str(err_json.get("statusCode"))
+            else:
+                err_msg = str(err_json)
+
             return {
                 "success": False,
                 "mode": gateway_type,
-                "error": meta_msg,
-                "message": f"WhatsApp Error ({meta_code}): {meta_msg}"
+                "error": err_msg,
+                "message": f"API Error ({err_code}): {err_msg}"
             }
         except Exception:
             return {
