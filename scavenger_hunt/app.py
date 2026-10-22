@@ -558,6 +558,38 @@ def api_admin_delete_user(user_id):
     return jsonify({"success": True, "message": f"User #{user_id} permanently deleted."})
 
 
+@app.route("/api/admin/users/delete-all", methods=["POST"])
+@require_admin
+def api_admin_delete_all_users():
+    database.delete_all_users()
+    return jsonify({"success": True, "message": "සියලු තරඟකරුවන් සාර්ථකව පද්ධතියෙන් ඉවත් කරන ලදී (All contestants deleted successfully)."})
+
+
+@app.route("/api/admin/users/delete-selected", methods=["POST"])
+@require_admin
+def api_admin_delete_selected_users():
+    data = request.get_json(silent=True) or {}
+    user_ids = data.get("user_ids", [])
+    if not user_ids or not isinstance(user_ids, list):
+        return jsonify({"success": False, "message": "කරුණාකර ඉවත් කිරීමට තරඟකරුවන් තෝරන්න (Please select contestants to delete)."}), 400
+
+    database.delete_selected_users(user_ids)
+    return jsonify({"success": True, "message": f"තෝරාගත් තරඟකරුවන් {len(user_ids)} දෙනා සාර්ථකව ඉවත් කරන ලදී."})
+
+
+@app.route("/api/admin/users/approve-selected", methods=["POST"])
+@require_admin
+def api_admin_approve_selected_users():
+    data = request.get_json(silent=True) or {}
+    user_ids = data.get("user_ids", [])
+    if not user_ids or not isinstance(user_ids, list):
+        return jsonify({"success": False, "message": "කරුණාකර අනුමත කිරීමට තරඟකරුවන් තෝරන්න."}), 400
+
+    for uid in user_ids:
+        database.approve_user(uid)
+    return jsonify({"success": True, "message": f"තෝරාගත් තරඟකරුවන් {len(user_ids)} දෙනා සාර්ථකව අනුමත කරන ලදී."})
+
+
 @app.route("/api/admin/terms", methods=["POST"])
 @require_admin
 def api_admin_save_terms():

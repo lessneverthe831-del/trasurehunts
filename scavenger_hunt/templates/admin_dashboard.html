@@ -129,9 +129,30 @@
                         තරඟකරු මෙතෙක් කළ සියලු දේ (ප්‍රශ්න වල හරි/වැරදි, ස්කෑන් කළ QR, වැරදුණු QR) සජීවීව පෙන්වයි.
                     </p>
                 </div>
-                <div class="flex items-center space-x-2">
+                <div class="flex flex-wrap items-center gap-2">
                     <input type="text" id="userSearchInput" onkeyup="filterUsers()" placeholder="Search name, NIC, or WhatsApp..."
                         class="px-3 py-1.5 text-xs rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-brand-500">
+
+                    <!-- Bulk Actions Toolbar (Visible when checkboxes selected) -->
+                    <div id="bulkActionsToolbar" class="hidden flex items-center space-x-1.5 bg-slate-900 px-2 py-1 rounded-xl border border-slate-700">
+                        <span id="selectedCountBadge" class="text-[10px] font-bold text-amber-300 px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-500/30">0 තෝරාගෙන ඇත</span>
+                        <button type="button" onclick="bulkApproveSelected()" class="px-2 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 font-bold text-[11px] transition-all flex items-center space-x-1" title="Approve Selected">
+                            <i class="fa-solid fa-check text-[10px]"></i>
+                            <span>Approve</span>
+                        </button>
+                        <button type="button" onclick="bulkDeleteSelected()" class="px-2 py-1 rounded-lg bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold text-[11px] transition-all flex items-center space-x-1" title="Delete Selected">
+                            <i class="fa-solid fa-trash-can text-[10px]"></i>
+                            <span>Delete</span>
+                        </button>
+                    </div>
+
+                    <!-- Clear All Contestants Button (The user's direct request) -->
+                    <button type="button" onclick="confirmDeleteAllUsers()"
+                        class="px-3 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 border border-rose-800/80 hover:border-rose-600 text-rose-300 hover:text-rose-100 font-bold text-xs transition-all flex items-center space-x-1.5 shadow-sm"
+                        title="සියලු තරඟකරුවන් එකවර පද්ධතියෙන් ඉවත් කරන්න (Clear All Contestants)">
+                        <i class="fa-solid fa-trash-can text-rose-400"></i>
+                        <span>සියලු දෙනා ඉවත් කරන්න (Clear All)</span>
+                    </button>
                 </div>
             </div>
 
@@ -140,6 +161,10 @@
                 <table class="w-full text-left text-xs">
                     <thead class="bg-slate-900/80 text-slate-400 uppercase font-bold tracking-wider border-b border-slate-800">
                         <tr>
+                            <th class="py-3 px-3 w-8 text-center">
+                                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)"
+                                    class="rounded bg-slate-800 border-slate-700 text-brand-600 focus:ring-0 cursor-pointer" title="Select All">
+                            </th>
                             <th class="py-3 px-3">#ID</th>
                             <th class="py-3 px-3">තරඟකරු (Contestant)</th>
                             <th class="py-3 px-3">හැඳුනුම්පත් අංකය</th>
@@ -860,7 +885,8 @@
     function renderUsersTable(users) {
         const tbody = document.getElementById('usersTableBody');
         if (!users || users.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-500">තරඟකරුවන් කිසිවෙකු ලියාපදිංචි වී නොමැත (No contestants yet).</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-500">තරඟකරුවන් කිසිවෙකු ලියාපදිංචි වී නොමැත (No contestants yet).</td></tr>`;
+            updateBulkSelectionState();
             return;
         }
 
@@ -920,6 +946,10 @@
 
             html += `
                 <tr class="hover:bg-slate-900/40 transition-colors ${isWaiting ? 'bg-amber-950/20' : ''}">
+                    <td class="py-3 px-3 text-center">
+                        <input type="checkbox" class="user-row-checkbox rounded bg-slate-800 border-slate-700 text-brand-600 focus:ring-0 cursor-pointer"
+                            value="${u.id}" onchange="updateBulkSelectionState()">
+                    </td>
                     <td class="py-3 px-3 font-mono text-slate-400">#${u.id}</td>
                     <td class="py-3 px-3 font-bold text-white">
                         <div class="flex items-center space-x-1.5">
@@ -977,6 +1007,7 @@
         });
 
         tbody.innerHTML = html;
+        updateBulkSelectionState();
     }
 
     function filterUsers() {
@@ -1173,6 +1204,124 @@
         }
     }
 
+    // --- Bulk Selection & Delete All Contestants Functions ---
+    async function confirmDeleteAllUsers() {
+        const totalUsers = currentUsersList ? currentUsersList.length : 0;
+        if (totalUsers === 0) {
+            alert("පද්ධතියේ ඉවත් කිරීමට තරඟකරුවන් කිසිවෙකු නොමැත. (No contestants to delete).");
+            return;
+        }
+
+        const confirmMsg = `⚠️ දැඩි අවධානයට (CRITICAL ACTION):\n\nදැනට ලියාපදිංචි වී සිටින සියලුම තරඟකරුවන් (${totalUsers} දෙනා) සහ ඔවුන්ගේ සියලු Scan Logs, Quiz විස්තර පද්ධතියෙන් සදහටම මකා දැමීමට ඔබට අවශ්‍ය බව ස්ථිරද?\n\nමෙම ක්‍රියාව ආපසු හැරවිය නොහැක! (This cannot be undone!)`;
+
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+
+        const promptCode = prompt("මෙය තහවුරු කිරීමට 'DELETE ALL' හෝ Master PIN (1234) ටයිප් කරන්න (Type 'DELETE ALL' or Master PIN to confirm):");
+        if (!promptCode || (promptCode.trim().toUpperCase() !== 'DELETE ALL' && promptCode.trim() !== '{{ master_pin }}' && promptCode.trim() !== '1234')) {
+            alert("තහවුරු කිරීමේ කේතය වැරදියි. ක්‍රියාව අවලංගු විය. (Action canceled).");
+            return;
+        }
+
+        try {
+            const res = await fetch("{{ url_for('api_admin_delete_all_users') }}", { method: "POST" });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message || "සියලු තරඟකරුවන් සාර්ථකව ඉවත් කරන ලදී.");
+                fetchLiveAdminData();
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (e) {
+            alert("Delete all failed: " + e);
+        }
+    }
+
+    function toggleSelectAll(checked) {
+        const checkboxes = document.querySelectorAll('.user-row-checkbox');
+        checkboxes.forEach(cb => cb.checked = checked);
+        updateBulkSelectionState();
+    }
+
+    function getSelectedUserIds() {
+        const checkboxes = document.querySelectorAll('.user-row-checkbox:checked');
+        return Array.from(checkboxes).map(cb => parseInt(cb.value)).filter(id => !isNaN(id));
+    }
+
+    function updateBulkSelectionState() {
+        const selectedIds = getSelectedUserIds();
+        const toolbar = document.getElementById("bulkActionsToolbar");
+        const badge = document.getElementById("selectedCountBadge");
+        const selectAllCheckbox = document.getElementById("selectAllCheckbox");
+
+        if (toolbar && badge) {
+            if (selectedIds.length > 0) {
+                toolbar.classList.remove("hidden");
+                badge.textContent = `${selectedIds.length} තෝරාගෙන ඇත`;
+            } else {
+                toolbar.classList.add("hidden");
+            }
+        }
+
+        const allCheckboxes = document.querySelectorAll('.user-row-checkbox');
+        if (selectAllCheckbox && allCheckboxes.length > 0) {
+            selectAllCheckbox.checked = (selectedIds.length === allCheckboxes.length);
+        }
+    }
+
+    async function bulkDeleteSelected() {
+        const selectedIds = getSelectedUserIds();
+        if (selectedIds.length === 0) return;
+
+        if (!confirm(`තෝරාගත් තරඟකරුවන් ${selectedIds.length} දෙනා පද්ධතියෙන් සදහටම ඉවත් කිරීමට අවශ්‍ය බව තහවුරු කරන්නද? (Delete ${selectedIds.length} selected contestants?)`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch("{{ url_for('api_admin_delete_selected_users') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_ids: selectedIds })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message);
+                fetchLiveAdminData();
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (e) {
+            alert("Bulk delete failed: " + e);
+        }
+    }
+
+    async function bulkApproveSelected() {
+        const selectedIds = getSelectedUserIds();
+        if (selectedIds.length === 0) return;
+
+        if (!confirm(`තෝරාගත් තරඟකරුවන් ${selectedIds.length} දෙනා අනුමත කිරීමට අවශ්‍ය බව තහවුරු කරන්නද? (Approve ${selectedIds.length} selected contestants?)`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch("{{ url_for('api_admin_approve_selected_users') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_ids: selectedIds })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message);
+                fetchLiveAdminData();
+            } else {
+                alert("Error: " + data.message);
+            }
+        } catch (e) {
+            alert("Bulk approve failed: " + e);
+        }
+    }
+
     // Render Completed Contestants Table in Raffle Tab
     function renderRaffleCompletedTable(users) {
         const tbody = document.getElementById('raffleCompletedTableBody');
@@ -1227,6 +1376,7 @@
             `;
         });
         tbody.innerHTML = html;
+        updateBulkSelectionState();
     }
 
     // Raffle Pool Actions

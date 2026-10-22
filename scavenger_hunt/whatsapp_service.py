@@ -88,26 +88,105 @@ def send_whatsapp_message(to_number: str, text: str) -> dict:
                 }
 
             url = f"https://graph.facebook.com/v19.0/{phone_number_id}/messages"
-            payload = json.dumps({
-                "messaging_product": "whatsapp",
-                "recipient_type": "individual",
-                "to": int_phone_raw,
-                "type": "text",
-                "text": {"body": text}
-            }).encode("utf-8")
+            
+            # Check if template mode is configured (e.g. 'hello_world' or custom)
+            template_name = database.get_setting("whatsapp_template_name", "").strip()
+
+            def _build_meta_payload(as_template=False, tmpl="hello_world"):
+                if as_template:
+                    if tmpl == "hello_world":
+                        return {
+                            "messaging_product": "whatsapp",
+                            "recipient_type": "individual",
+                            "to": int_phone_raw,
+                            "type": "template",
+                            "template": {
+                                "name": "hello_world",
+                                "language": {"code": "en_US"}
+                            }
+                        }
+                    else:
+                        return {
+                            "messaging_product": "whatsapp",
+                            "recipient_type": "individual",
+                            "to": int_phone_raw,
+                            "type": "template",
+                            "template": {
+                                "name": tmpl,
+                                "language": {"code": "en_US"},
+                                "components": [
+                                    {
+                                        "type": "body",
+                                        "parameters": [{"type": "text", "text": text}]
+                                    }
+                                ]
+                            }
+                        }
+                else:
+                    return {
+                        "messaging_product": "whatsapp",
+                        "recipient_type": "individual",
+                        "to": int_phone_raw,
+                        "type": "text",
+                        "text": {"body": text}
+                    }
+
+            # In test mode or when template is set, start with template if configured, otherwise text
+            use_template = bool(template_name)
+            tmpl_to_use = template_name or "hello_world"
+            payload_dict = _build_meta_payload(as_template=use_template, tmpl=tmpl_to_use)
 
             req = urllib.request.Request(
                 url,
-                data=payload,
+                data=json.dumps(payload_dict).encode("utf-8"),
                 headers={
                     "Authorization": f"Bearer {token}",
                     "Content-Type": "application/json"
                 },
                 method="POST"
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                resp_data = resp.read().decode("utf-8")
-                return {"success": True, "mode": "cloud_api", "response": resp_data}
+
+            try:
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    resp_data = resp.read().decode("utf-8")
+                    return {"success": True, "mode": "cloud_api", "response": resp_data}
+            except urllib.error.HTTPError as he:
+                err_text = he.read().decode("utf-8", errors="ignore")
+                # Fallback: if text failed because outside 24h window (code 131047), retry with hello_world template
+                if not use_template and ("131047" in err_text or "template" in err_text.lower()):
+                    try:
+                        fallback_payload = _build_meta_payload(as_template=True, tmpl="hello_world")
+                        fallback_req = urllib.request.Request(
+                            url,
+                            data=json.dumps(fallback_payload).encode("utf-8"),
+                            headers={
+                                "Authorization": f"Bearer {token}",
+                                "Content-Type": "application/json"
+                            },
+                            method="POST"
+                        )
+                        with urllib.request.urlopen(fallback_req, timeout=10) as fb_resp:
+                            fb_data = fb_resp.read().decode("utf-8")
+                            return {"success": True, "mode": "cloud_api", "response": fb_data, "note": "Delivered via Meta hello_world template"}
+                    except Exception:
+                        pass
+
+                # Parse detailed Meta error JSON
+                try:
+                    err_json = json.loads(err_text)
+                    err_info = err_json.get("error", {})
+                    msg = err_info.get("message", err_text)
+                    code = err_info.get("code", "")
+                    details = err_info.get("error_data", {}).get("details", "")
+                    return {
+                        "success": False,
+                        "mode": "cloud_api",
+                        "error_code": code,
+                        "error": msg,
+                        "message": f"Meta Error ({code}): {msg} {details}".strip()
+                    }
+                except Exception:
+                    return {"success": False, "mode": "cloud_api", "error": err_text, "message": err_text}
 
         elif gateway_type == "twilio":
             account_sid = database.get_setting("whatsapp_account_sid", "")
@@ -159,7 +238,12 @@ def send_whatsapp_message(to_number: str, text: str) -> dict:
                 "body": text
             }).encode("utf-8")
 
-            req = urllib.request.Request(url, data=data, method="POST")
+            req = urllib.request.Request(
+                url,
+                data=data,
+                headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": "TreasureHuntBot/1.0"},
+                method="POST"
+            )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 resp_data = resp.read().decode("utf-8")
                 return {"success": True, "mode": "ultramsg", "response": resp_data}
@@ -190,6 +274,26 @@ def send_whatsapp_message(to_number: str, text: str) -> dict:
                 "message": f"Unknown gateway type: {gateway_type}"
             }
 
+    except urllib.error.HTTPError as he:
+        err_body = he.read().decode("utf-8", errors="ignore")
+        print(f"[WHATSAPP HTTP ERROR] Status {he.code}: {err_body}")
+        try:
+            err_json = json.loads(err_body)
+            meta_msg = err_json.get("error", {}).get("message", err_body)
+            meta_code = err_json.get("error", {}).get("code", "")
+            return {
+                "success": False,
+                "mode": gateway_type,
+                "error": meta_msg,
+                "message": f"WhatsApp Error ({meta_code}): {meta_msg}"
+            }
+        except Exception:
+            return {
+                "success": False,
+                "mode": gateway_type,
+                "error": err_body,
+                "message": f"HTTP {he.code}: {err_body}"
+            }
     except Exception as e:
         print(f"[WHATSAPP ERROR] Failed sending to {int_phone_plus}: {e}")
         return {

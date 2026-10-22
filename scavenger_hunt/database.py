@@ -527,9 +527,43 @@ def reject_user(user_id: int):
 def delete_user(user_id: int):
     conn = get_db()
     with conn:
+        conn.execute("DELETE FROM raffle_winners WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM raffle_pool WHERE user_id = ?", (user_id,))
         conn.execute("DELETE FROM activity_logs WHERE user_id = ?", (user_id,))
         conn.execute("DELETE FROM scan_logs WHERE user_id = ?", (user_id,))
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.close()
+
+
+def delete_all_users():
+    """
+    Permanently deletes all registered contestants and their logs.
+    """
+    conn = get_db()
+    with conn:
+        conn.execute("DELETE FROM raffle_winners")
+        conn.execute("DELETE FROM raffle_pool")
+        conn.execute("DELETE FROM activity_logs")
+        conn.execute("DELETE FROM scan_logs")
+        conn.execute("DELETE FROM otp_verifications")
+        conn.execute("DELETE FROM users")
+    conn.close()
+
+
+def delete_selected_users(user_ids: list):
+    """
+    Permanently deletes a selected list of contestants.
+    """
+    if not user_ids:
+        return
+    conn = get_db()
+    placeholders = ",".join("?" for _ in user_ids)
+    with conn:
+        conn.execute(f"DELETE FROM raffle_winners WHERE user_id IN ({placeholders})", user_ids)
+        conn.execute(f"DELETE FROM raffle_pool WHERE user_id IN ({placeholders})", user_ids)
+        conn.execute(f"DELETE FROM activity_logs WHERE user_id IN ({placeholders})", user_ids)
+        conn.execute(f"DELETE FROM scan_logs WHERE user_id IN ({placeholders})", user_ids)
+        conn.execute(f"DELETE FROM users WHERE id IN ({placeholders})", user_ids)
     conn.close()
 
 
