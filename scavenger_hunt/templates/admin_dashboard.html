@@ -580,38 +580,45 @@
                         <div>
                             <label class="block font-semibold text-slate-300 mb-1.5">WhatsApp Gateway Provider (සම්බන්ධතා ක්‍රමය)</label>
                             <select id="settingWhatsappGatewayType" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-medium focus:ring-2 focus:ring-emerald-500">
-                                <option value="simulation" {% if whatsapp_settings.gateway_type == 'simulation' %}selected{% endif %}>🟢 Local Simulation / Test Mode (ස්වයංක්‍රීය පරීක්ෂණ මාදිලිය - නොමිලේ)</option>
-                                <option value="cloud_api" {% if whatsapp_settings.gateway_type == 'cloud_api' %}selected{% endif %}>📱 Meta WhatsApp Cloud API (නිල Meta ව්‍යාපාරික API)</option>
-                                <option value="twilio" {% if whatsapp_settings.gateway_type == 'twilio' %}selected{% endif %}>⚡ Twilio WhatsApp API</option>
+                                <option value="green_api" {% if whatsapp_settings.gateway_type in ['green_api', 'greenapi'] %}selected{% endif %}>🟢 Green-API (WhatsApp QR Link - Free Developer Plan - Recommended ⭐)</option>
+                                <option value="notifylk" {% if whatsapp_settings.gateway_type in ['notifylk', 'notify_lk'] %}selected{% endif %}>🇱🇰 Notify.lk (Direct SMS Gateway - 50 Free SMS)</option>
+                                <option value="simulation" {% if whatsapp_settings.gateway_type == 'simulation' %}selected{% endif %}>💻 Local Simulation / Test Mode (ස්වයංක්‍රීය පරීක්ෂණ මාදිලිය - නොමිලේ)</option>
+                                <option value="cloud_api" {% if whatsapp_settings.gateway_type == 'cloud_api' %}selected{% endif %}>📱 Meta WhatsApp Cloud API (නිල Meta Cloud API)</option>
                                 <option value="ultramsg" {% if whatsapp_settings.gateway_type == 'ultramsg' %}selected{% endif %}>🚀 UltraMsg Gateway</option>
+                                <option value="twilio" {% if whatsapp_settings.gateway_type == 'twilio' %}selected{% endif %}>⚡ Twilio WhatsApp API</option>
                                 <option value="custom_url" {% if whatsapp_settings.gateway_type == 'custom_url' %}selected{% endif %}>🌐 Custom Webhook / API URL</option>
                             </select>
                         </div>
 
+                        <!-- Provider-specific Guide Hint Box -->
+                        <div id="providerGuideBox" class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-slate-300 space-y-1.5">
+                            <!-- Filled dynamically by JavaScript -->
+                        </div>
+
                         <!-- Dynamic Config Fields -->
                         <div id="gatewayFieldsContainer" class="space-y-3 p-4 rounded-2xl bg-slate-950/60 border border-slate-800">
-                            <div>
-                                <label class="block font-semibold text-slate-300 mb-1">API Token / Access Token</label>
-                                <input type="password" id="settingWhatsappApiToken" value="{{ whatsapp_settings.api_token }}" placeholder="Bearer Token or API Key"
+                            <div id="fieldGroupToken">
+                                <label id="labelWhatsappApiToken" class="block font-semibold text-slate-300 mb-1">API Token / apiTokenInstance</label>
+                                <input type="password" id="settingWhatsappApiToken" value="{{ whatsapp_settings.api_token }}" placeholder="Token or Key"
                                     class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs">
                             </div>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Phone Number ID (Meta) / Instance ID</label>
-                                    <input type="text" id="settingWhatsappPhoneId" value="{{ whatsapp_settings.phone_number_id or whatsapp_settings.instance_id }}" placeholder="e.g. 104829104859"
+                                <div id="fieldGroupId">
+                                    <label id="labelWhatsappPhoneId" class="block font-semibold text-slate-300 mb-1">Instance ID (idInstance) / Phone Number ID</label>
+                                    <input type="text" id="settingWhatsappPhoneId" value="{{ whatsapp_settings.phone_number_id or whatsapp_settings.instance_id }}" placeholder="e.g. 1101928374"
                                         class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs">
                                 </div>
-                                <div>
-                                    <label class="block font-semibold text-slate-300 mb-1">Account SID (Twilio)</label>
-                                    <input type="text" id="settingWhatsappAccountSid" value="{{ whatsapp_settings.account_sid }}" placeholder="ACxxxxxxxxxxxxxx"
+                                <div id="fieldGroupAccountSid">
+                                    <label id="labelWhatsappAccountSid" class="block font-semibold text-slate-300 mb-1">Account SID / Sender ID</label>
+                                    <input type="text" id="settingWhatsappAccountSid" value="{{ whatsapp_settings.account_sid }}" placeholder="ACxxxxxxxx or Sender ID"
                                         class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs">
                                 </div>
                             </div>
 
-                            <div>
-                                <label class="block font-semibold text-slate-300 mb-1">Custom Webhook URL (Optional)</label>
-                                <input type="text" id="settingWhatsappCustomUrl" value="{{ whatsapp_settings.custom_url }}" placeholder="https://api.example.com/send?to={phone}&text={text}"
+                            <div id="fieldGroupCustomUrl">
+                                <label id="labelWhatsappCustomUrl" class="block font-semibold text-slate-300 mb-1">Host URL / Webhook URL (Optional)</label>
+                                <input type="text" id="settingWhatsappCustomUrl" value="{{ whatsapp_settings.custom_url }}" placeholder="https://api.green-api.com"
                                     class="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs">
                             </div>
 
@@ -1619,6 +1626,114 @@
             alert("Error: " + e);
         }
     });
+
+    // Gateway Provider Dynamic UI
+    function updateGatewayUI() {
+        const typeEl = document.getElementById("settingWhatsappGatewayType");
+        if (!typeEl) return;
+        const type = typeEl.value;
+        const guideBox = document.getElementById("providerGuideBox");
+        const labelToken = document.getElementById("labelWhatsappApiToken");
+        const inputToken = document.getElementById("settingWhatsappApiToken");
+        const labelPhoneId = document.getElementById("labelWhatsappPhoneId");
+        const inputPhoneId = document.getElementById("settingWhatsappPhoneId");
+        const groupAccountSid = document.getElementById("fieldGroupAccountSid");
+        const labelAccountSid = document.getElementById("labelWhatsappAccountSid");
+        const groupCustomUrl = document.getElementById("fieldGroupCustomUrl");
+        const labelCustomUrl = document.getElementById("labelWhatsappCustomUrl");
+        const inputCustomUrl = document.getElementById("settingWhatsappCustomUrl");
+
+        if (!guideBox) return;
+
+        if (type === "green_api" || type === "greenapi") {
+            guideBox.className = "p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-xs text-slate-200 space-y-2";
+            guideBox.innerHTML = `
+                <div class="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
+                    <i class="fa-brands fa-whatsapp text-lg"></i>
+                    <span>Green-API Setup (WhatsApp QR Link - 100% නොමිලේ):</span>
+                </div>
+                <ol class="list-decimal list-inside space-y-1 text-slate-300">
+                    <li><a href="https://green-api.com" target="_blank" class="text-emerald-400 underline font-semibold">green-api.com</a> වෙත ගොස් Free Developer Instance එකක් සාදාගන්න.</li>
+                    <li>එහි ලැබෙන QR Code එක ඔබගේ දුරකථනයේ WhatsApp (<span class="text-white font-mono font-bold">Linked Devices</span>) මඟින් Scan කරන්න.</li>
+                    <li>එවිට ලැබෙන <b class="text-emerald-300 font-mono">idInstance</b> සහ <b class="text-emerald-300 font-mono">apiTokenInstance</b> පහත කොටුවලට ඇතුළත් කර <b>Save</b> ඔබන්න.</li>
+                </ol>
+                <div class="text-[11px] text-emerald-300 bg-emerald-900/30 p-2 rounded-lg border border-emerald-800/40">
+                    ✨ කිසිදු Meta සීමාවක් හෝ Whitelist කිරීමක් අවශ්‍ය නැත. ඕනෑම contestant කෙනෙකුගේ WhatsApp අංකයට සැබෑ OTP යැවිය හැක.
+                </div>
+            `;
+            if (labelToken) labelToken.textContent = "Green-API apiTokenInstance (API Token)";
+            if (inputToken) inputToken.placeholder = "e.g. 7d8f4a123bc456...";
+            if (labelPhoneId) labelPhoneId.textContent = "Green-API idInstance (Instance ID)";
+            if (inputPhoneId) inputPhoneId.placeholder = "e.g. 7103123456";
+            if (groupAccountSid) groupAccountSid.classList.add("hidden");
+            if (groupCustomUrl) {
+                groupCustomUrl.classList.remove("hidden");
+                if (labelCustomUrl) labelCustomUrl.textContent = "Green-API Host URL (Optional - Default: https://api.green-api.com)";
+                if (inputCustomUrl && !inputCustomUrl.value) inputCustomUrl.placeholder = "https://api.green-api.com";
+            }
+        } else if (type === "notifylk" || type === "notify_lk") {
+            guideBox.className = "p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-xs text-slate-200 space-y-2";
+            guideBox.innerHTML = `
+                <div class="flex items-center space-x-2 text-amber-400 font-bold text-sm">
+                    <i class="fa-solid fa-message text-lg"></i>
+                    <span>Notify.lk Setup (Direct Sri Lankan SMS Gateway - 50 Free SMS):</span>
+                </div>
+                <ol class="list-decimal list-inside space-y-1 text-slate-300">
+                    <li><a href="https://app.notify.lk" target="_blank" class="text-amber-400 underline font-semibold">app.notify.lk</a> වෙත ගොස් නොමිලේ Account එකක් සාදා නොමිලේ SMS 50ක් ලබාගන්න.</li>
+                    <li>ඔබගේ <b class="text-amber-300 font-mono">User ID</b> සහ <b class="text-amber-300 font-mono">API Key</b> මෙතැනට ඇතුළත් කර Save කරන්න.</li>
+                    <li>තරඟකරුවාගේ ඕනෑම Dialog, Mobitel, Hutch, Airtel සිම්පතකට සෘජුවම SMS එකක් ලෙස OTP එක ලැබේ.</li>
+                </ol>
+            `;
+            if (labelToken) labelToken.textContent = "Notify.lk API Key";
+            if (inputToken) inputToken.placeholder = "API Key from notify.lk";
+            if (labelPhoneId) labelPhoneId.textContent = "Notify.lk User ID";
+            if (inputPhoneId) inputPhoneId.placeholder = "e.g. 10452";
+            if (groupAccountSid) {
+                groupAccountSid.classList.remove("hidden");
+                if (labelAccountSid) labelAccountSid.textContent = "Notify.lk Sender ID (Default: NotifyDEMO)";
+            }
+            if (groupCustomUrl) groupCustomUrl.classList.add("hidden");
+        } else if (type === "simulation") {
+            guideBox.className = "p-4 rounded-2xl bg-sky-950/40 border border-sky-500/40 text-xs text-slate-200 space-y-1.5";
+            guideBox.innerHTML = `
+                <div class="flex items-center space-x-2 text-sky-400 font-bold text-sm">
+                    <i class="fa-solid fa-laptop-code text-lg"></i>
+                    <span>Local Simulation / Test Mode:</span>
+                </div>
+                <p class="text-slate-300">
+                    මෙම මාදිලියේදී සැබෑ දුරකථනයට පණිවිඩ නොයයි. OTP අංකය Registration පිටුවේ හෝ Server Console හි දිස්වේ. නොමිලේ පරීක්ෂා කිරීමට සුදුසුය.
+                </p>
+            `;
+            if (groupAccountSid) groupAccountSid.classList.remove("hidden");
+            if (groupCustomUrl) groupCustomUrl.classList.remove("hidden");
+        } else if (type === "cloud_api") {
+            guideBox.className = "p-4 rounded-2xl bg-blue-950/40 border border-blue-500/40 text-xs text-slate-200 space-y-1.5";
+            guideBox.innerHTML = `
+                <div class="flex items-center space-x-2 text-blue-400 font-bold text-sm">
+                    <i class="fa-brands fa-meta text-lg"></i>
+                    <span>Meta WhatsApp Cloud API:</span>
+                </div>
+                <p class="text-slate-300">
+                    Meta Cloud API මඟින් පණිවිඩ යැවීමට Meta Developer Console වෙතින් Phone Number ID සහ Access Token ලබා දෙන්න.
+                </p>
+            `;
+            if (labelToken) labelToken.textContent = "Meta Access Token";
+            if (labelPhoneId) labelPhoneId.textContent = "Meta Phone Number ID";
+            if (groupAccountSid) groupAccountSid.classList.add("hidden");
+            if (groupCustomUrl) groupCustomUrl.classList.remove("hidden");
+        } else {
+            guideBox.className = "p-4 rounded-2xl bg-slate-900 border border-slate-700 text-xs text-slate-200 space-y-1.5";
+            guideBox.innerHTML = `<span class="text-slate-400">අවශ්‍ය API තොරතුරු ඇතුළත් කර Save Settings ඔබන්න.</span>`;
+            if (groupAccountSid) groupAccountSid.classList.remove("hidden");
+            if (groupCustomUrl) groupCustomUrl.classList.remove("hidden");
+        }
+    }
+
+    const gatewaySelectEl = document.getElementById("settingWhatsappGatewayType");
+    if (gatewaySelectEl) {
+        gatewaySelectEl.addEventListener("change", updateGatewayUI);
+        updateGatewayUI();
+    }
 
     // Save WhatsApp Settings
     const whatsappSettingsForm = document.getElementById("whatsappSettingsForm");
