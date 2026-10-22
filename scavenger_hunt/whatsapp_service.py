@@ -402,8 +402,8 @@ def generate_and_send_otp(whatsapp: str, id_number: str = "") -> dict:
     # 2. Generate 6-digit OTP
     otp_code = f"{random.randint(100000, 999999)}"
 
-    # 3. Store OTP in database (Valid for 10 minutes)
-    now = datetime.now(timezone.utc)
+    # 3. Store OTP in database (Valid for 10 minutes in Sri Lanka Standard Time)
+    now = datetime.now(database.SRI_LANKA_TZ)
     expires = now + timedelta(minutes=10)
     now_str = now.strftime("%Y-%m-%d %H:%M:%S")
     expires_str = expires.strftime("%Y-%m-%d %H:%M:%S")
@@ -471,7 +471,7 @@ def verify_otp_code(whatsapp: str, entered_otp: str) -> dict:
         }
 
     otp_rec = dict(row)
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    now_str = datetime.now(database.SRI_LANKA_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
     # Check expiry
     if otp_rec["expires_at"] < now_str:

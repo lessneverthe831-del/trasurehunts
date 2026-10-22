@@ -711,7 +711,7 @@
                                     <span>{{ otp_rec.whatsapp }}</span>
                                 </div>
                                 <div class="text-[10px] text-slate-400 font-mono mt-0.5">
-                                    ID: {{ otp_rec.id_number if otp_rec.id_number else 'N/A' }} • {{ otp_rec.created_at }}
+                                    ID: {{ otp_rec.id_number if otp_rec.id_number else 'N/A' }} • {{ otp_rec.created_at | sl_time }}
                                 </div>
                             </div>
                             <div class="text-right">
@@ -843,6 +843,19 @@
         }
     }
 
+    // Helper to format timestamps into Sri Lanka 12-hour Time (YYYY-MM-DD hh:mm:ss AM/PM)
+    function formatDisplayTime(dateStr) {
+        if (!dateStr) return '';
+        const m = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+        if (!m) return dateStr;
+        const [_, y, mo, d, h, mi, s] = m;
+        let hour = parseInt(h, 10);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const hour12 = hour % 12 || 12;
+        const hour12Str = hour12 < 10 ? '0' + hour12 : '' + hour12;
+        return `${y}-${mo}-${d} ${hour12Str}:${mi}:${s} ${ampm}`;
+    }
+
     // Live Polling every 2 seconds
     async function fetchLiveAdminData() {
         try {
@@ -965,7 +978,7 @@
                                 ${u.age_category === 'under_18' ? '<18' : '18+'}
                             </span>
                         </div>
-                        <div class="text-[10px] text-slate-500 font-normal">${u.created_at || ''}</div>
+                        <div class="text-[10px] text-slate-400 font-mono mt-0.5">${formatDisplayTime(u.created_at)}</div>
                     </td>
                     <td class="py-3 px-3 font-mono text-indigo-300">${escapeHtml(u.id_number)}</td>
                     <td class="py-3 px-3 font-mono text-emerald-400">
@@ -1153,7 +1166,7 @@
                             <div class="flex-1 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800/80">
                                 <div class="flex items-center justify-between">
                                     <span class="font-bold text-white text-xs">${escapeHtml(act.title)}</span>
-                                    <span class="text-[10px] font-mono text-slate-400">${act.created_at || ''}</span>
+                                    <span class="text-[10px] font-mono text-slate-300 font-semibold">${formatDisplayTime(act.created_at)}</span>
                                 </div>
                                 ${act.description ? `<p class="text-[11px] text-slate-400 mt-1">${escapeHtml(act.description)}</p>` : ''}
                             </div>
@@ -1360,7 +1373,7 @@
                             <span>${escapeHtml(u.whatsapp)}</span>
                         </a>
                     </td>
-                    <td class="py-2.5 px-3 text-[11px] text-slate-400">${u.completed_at || 'Just now'}</td>
+                    <td class="py-2.5 px-3 text-[11px] text-slate-400 font-mono">${formatDisplayTime(u.completed_at) || 'Just now'}</td>
                     <td class="py-2.5 px-3">
                         ${inRaffle ? `
                             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">🎟️ Selected (තෝරා ඇත)</span>

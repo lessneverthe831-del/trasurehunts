@@ -66,6 +66,77 @@
         opacity: 1;
         transform: translateY(0);
     }
+    /* Master QR Puzzle Styling */
+    .glow-gold {
+        box-shadow: 0 0 50px -5px rgba(245, 158, 11, 0.6);
+    }
+    .puzzle-piece {
+        transition: all 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+        transform-origin: center center;
+    }
+    .piece-locked {
+        opacity: 0.22;
+        filter: grayscale(1) blur(1.5px);
+        transform: scale(0.92);
+    }
+    .piece-unlocked {
+        opacity: 1;
+        filter: grayscale(0) drop-shadow(0 0 12px rgba(16, 185, 129, 0.65));
+        transform: scale(1);
+    }
+    @keyframes shockwave {
+        0% { transform: scale(0.8); opacity: 1; }
+        100% { transform: scale(1.6); opacity: 0; }
+    }
+    .shockwave-anim {
+        animation: shockwave 1.2s ease-out forwards;
+    }
+    @keyframes pulseBorder {
+        0%, 100% { border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 0 20px rgba(245, 158, 11, 0.2); }
+        50% { border-color: rgba(245, 158, 11, 1); box-shadow: 0 0 45px rgba(245, 158, 11, 0.7); }
+    }
+    .pulse-gold {
+        animation: pulseBorder 1.5s infinite;
+    }
+
+    /* --- Animated Treasure Chest & Lid --- */
+    @keyframes lidBounceLoop {
+        0%, 100% {
+            transform: rotate(0deg) translateY(0);
+        }
+        50% {
+            transform: rotate(-18deg) translateY(-5px);
+        }
+    }
+    .lid-anim-loop {
+        animation: lidBounceLoop 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        transform-origin: 10% 85%;
+    }
+    .lid-anim-open-wide {
+        transform: rotate(-38deg) translateY(-10px) !important;
+        transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        transform-origin: 10% 85%;
+    }
+
+    /* Floating Treasure Particles from chest */
+    @keyframes treasureFloat1 {
+        0% { transform: translate(0, 0) scale(0.4); opacity: 0; }
+        50% { opacity: 1; transform: translate(-6px, -14px) scale(1); }
+        100% { transform: translate(-12px, -28px) scale(0.6); opacity: 0; }
+    }
+    @keyframes treasureFloat2 {
+        0% { transform: translate(0, 0) scale(0.4); opacity: 0; }
+        50% { opacity: 1; transform: translate(6px, -16px) scale(1.1); }
+        100% { transform: translate(12px, -30px) scale(0.5); opacity: 0; }
+    }
+    @keyframes treasureFloat3 {
+        0% { transform: translate(0, 0) scale(0.3); opacity: 0; }
+        50% { opacity: 1; transform: translate(0px, -20px) scale(1); }
+        100% { transform: translate(0px, -36px) scale(0.4); opacity: 0; }
+    }
+    .gem-p1 { animation: treasureFloat1 2.2s ease-in-out infinite; }
+    .gem-p2 { animation: treasureFloat2 2.2s ease-in-out 0.7s infinite; }
+    .gem-p3 { animation: treasureFloat3 2.2s ease-in-out 1.4s infinite; }
 </style>
 {% endblock %}
 
@@ -197,6 +268,118 @@
             <span>පිවිසෙන්න celeste.lk</span>
             <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
         </a>
+    </div>
+
+    <!-- Master Mystery QR Puzzle Card -->
+    <div class="glass-panel p-5 sm:p-6 rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden flex flex-col items-center text-center bg-slate-900/80 backdrop-blur-xl" id="puzzleStageCard">
+        <canvas id="huntConfettiCanvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+        <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-2">
+            <i class="fa-solid fa-puzzle-piece"></i>
+            <span>Master Mystery QR Puzzle (රහස් QR පසලය)</span>
+        </div>
+        <h3 class="text-base sm:text-lg font-black text-white tracking-tight">
+            අනුපිළිවෙලින් QR 5 ස්කෑන් කර මෙම පසලය සම්පූර්ණ කරන්න
+        </h3>
+        <p class="text-xs text-slate-400 mt-0.5 max-w-sm">
+            සෑම සාර්ථක ස්කෑන් කිරීමකදීම අදාළ පසල් කොටස මෙයට එකතු වේ. 5ම එකතු වූ පසු ජයග්‍රාහී කුසලාන QR එක විවෘත වේ!
+        </p>
+
+        <!-- 5-Segment Master QR Container (Exact 360x360 Ratio) -->
+        <div class="relative w-64 h-64 sm:w-80 sm:h-80 p-2.5 rounded-3xl bg-slate-950 border-2 border-slate-800 transition-all duration-700 flex items-center justify-center mt-4 shadow-2xl overflow-hidden" id="qrFrame">
+
+            <!-- Shockwave Ring (Plays on win) -->
+            <div id="shockwaveRing" class="hidden absolute inset-0 rounded-3xl border-4 border-amber-400 pointer-events-none z-30"></div>
+
+            <!-- Puzzle Grid Container (The 4 corner quadrants of the User's QR) -->
+            <div class="w-full h-full relative grid grid-cols-2 grid-rows-2 gap-1 rounded-2xl overflow-hidden bg-white">
+
+                <!-- PIECE 1: Top-Left Quadrant -->
+                <div id="piece-1" class="puzzle-piece piece-locked relative overflow-hidden bg-white border border-slate-200/50 flex items-center justify-center">
+                    <img src="{{ url_for('static', filename='qr_piece_1.png') }}" alt="Piece 1" class="w-full h-full object-cover">
+                    <div id="lock-icon-1" class="absolute inset-0 bg-slate-950/75 flex flex-col items-center justify-center text-slate-400">
+                        <i class="fa-solid fa-lock text-base text-emerald-400"></i>
+                        <span class="text-[9px] font-mono font-bold mt-1 text-slate-300">Piece #1</span>
+                    </div>
+                </div>
+
+                <!-- PIECE 2: Top-Right Quadrant -->
+                <div id="piece-2" class="puzzle-piece piece-locked relative overflow-hidden bg-white border border-slate-200/50 flex items-center justify-center">
+                    <img src="{{ url_for('static', filename='qr_piece_2.png') }}" alt="Piece 2" class="w-full h-full object-cover">
+                    <div id="lock-icon-2" class="absolute inset-0 bg-slate-950/75 flex flex-col items-center justify-center text-slate-400">
+                        <i class="fa-solid fa-lock text-base text-teal-400"></i>
+                        <span class="text-[9px] font-mono font-bold mt-1 text-slate-300">Piece #2</span>
+                    </div>
+                </div>
+
+                <!-- PIECE 3: Bottom-Left Quadrant -->
+                <div id="piece-3" class="puzzle-piece piece-locked relative overflow-hidden bg-white border border-slate-200/50 flex items-center justify-center">
+                    <img src="{{ url_for('static', filename='qr_piece_3.png') }}" alt="Piece 3" class="w-full h-full object-cover">
+                    <div id="lock-icon-3" class="absolute inset-0 bg-slate-950/75 flex flex-col items-center justify-center text-slate-400">
+                        <i class="fa-solid fa-lock text-base text-cyan-400"></i>
+                        <span class="text-[9px] font-mono font-bold mt-1 text-slate-300">Piece #3</span>
+                    </div>
+                </div>
+
+                <!-- PIECE 4: Bottom-Right Quadrant -->
+                <div id="piece-4" class="puzzle-piece piece-locked relative overflow-hidden bg-white border border-slate-200/50 flex items-center justify-center">
+                    <img src="{{ url_for('static', filename='qr_piece_4.png') }}" alt="Piece 4" class="w-full h-full object-cover">
+                    <div id="lock-icon-4" class="absolute inset-0 bg-slate-950/75 flex flex-col items-center justify-center text-slate-400">
+                        <i class="fa-solid fa-lock text-base text-sky-400"></i>
+                        <span class="text-[9px] font-mono font-bold mt-1 text-slate-300">Piece #4</span>
+                    </div>
+                </div>
+
+                <!-- PIECE 5: CENTER TREASURE CHEST CORE (Exact 55% diameter circle) -->
+                <div id="piece-5" class="puzzle-piece piece-locked absolute inset-0 m-auto w-36 h-36 sm:w-44 sm:h-44 rounded-full shadow-2xl flex items-center justify-center z-20 overflow-hidden" style="box-shadow: 0 0 25px rgba(0,0,0,0.4);">
+                    
+                    <!-- Background Circle with Red Chest Base -->
+                    <div class="w-full h-full relative rounded-full overflow-hidden flex items-center justify-center">
+                        <img src="{{ url_for('static', filename='center_base_no_lid.png') }}" alt="Center Chest Base" class="w-full h-full object-contain">
+
+                        <!-- Golden Light Glow behind Chest Lid -->
+                        <div id="chestGlow" class="hidden absolute inset-0 m-auto w-24 h-24 rounded-full bg-amber-400/30 blur-md pointer-events-none"></div>
+
+                        <!-- Floating Treasure Emitters (Coins & Gems emerging when lid lifts!) -->
+                        <div id="treasureEmitters" class="hidden absolute inset-0 pointer-events-none">
+                            <div class="absolute left-[44%] top-[40%] text-xs text-yellow-400 gem-p1">🪙</div>
+                            <div class="absolute left-[52%] top-[38%] text-xs text-cyan-400 gem-p2">💎</div>
+                            <div class="absolute left-[48%] top-[36%] text-[10px] text-amber-300 gem-p3">✨</div>
+                        </div>
+
+                        <!-- Animated Chest Lid Layer (Hinged at bottom-left, opens up and down!) -->
+                        <div id="chestLidContainer" class="absolute pointer-events-none" style="left: 30.8%; top: 42.4%; width: 37.9%; height: 27.8%;">
+                            <img id="chestLidImg" src="{{ url_for('static', filename='chest_lid.png') }}" alt="Chest Lid" class="w-full h-full object-contain lid-anim-loop">
+                        </div>
+
+                        <!-- Locked Overlay State -->
+                        <div id="lock-icon-5" class="absolute inset-0 bg-slate-950/80 rounded-full flex flex-col items-center justify-center text-amber-400 z-10">
+                            <i class="fa-solid fa-lock text-xl text-amber-400 mb-1"></i>
+                            <span class="text-[10px] font-black uppercase text-amber-300 tracking-wider">Final Key</span>
+                            <span class="text-[8px] text-slate-400">Treasure Chest</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- GRAND VICTORY OVERLAY BADGE (Triggers after 5th piece) -->
+            <div id="victoryOverlay" class="hidden absolute inset-0 rounded-3xl bg-gradient-to-br from-amber-500/95 via-yellow-500/95 to-amber-600/95 flex flex-col items-center justify-center p-4 text-center z-40 transition-all duration-700 transform scale-90">
+                <div class="w-16 h-16 rounded-full bg-white text-amber-600 flex items-center justify-center text-3xl shadow-xl mb-2 animate-bounce">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <h3 class="text-base font-black text-slate-950 tracking-tight leading-tight">
+                    තරඟය ඔබ ජයග්‍රහණය කළා!
+                </h3>
+                <p class="text-[11px] font-bold text-slate-900 mt-0.5">
+                    YOU WON THE TREASURE HUNT!
+                </p>
+                <div class="mt-2.5 px-3 py-1 bg-slate-950 text-amber-300 rounded-xl font-mono text-[11px] font-bold shadow">
+                    👑 All 5/5 Targets Cleared • Master QR Unlocked!
+                </div>
+            </div>
+
+        </div>
     </div>
 
     <!-- Main Scanner & Checkpoints Grid -->
@@ -586,6 +769,9 @@
                 const percent = Math.min(100, Math.round((data.scanned_count / data.total) * 100));
                 progressBar.style.width = percent + "%";
 
+                // Update Master QR Puzzle with animation & snap sound
+                updatePuzzle(data.scanned_count, true);
+
                 // Add to cleared list
                 if (data.cleared_checkpoint) {
                     const clearedDiv = document.createElement("div");
@@ -607,11 +793,12 @@
                     clearedList.appendChild(clearedDiv);
                 }
 
-                // If finished, redirect to victory
+                // If finished, trigger grand puzzle finale celebration before redirecting!
                 if (data.status === "completed") {
+                    triggerPuzzleFinale();
                     setTimeout(() => {
                         window.location.href = data.redirect || "{{ url_for('victory') }}";
-                    }, 1800);
+                    }, 3800);
                     return;
                 }
 
@@ -704,5 +891,167 @@
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
     }
+
+    // --- Web Audio Synthesizer for Snap Sounds & Victory Fanfare ---
+    let audioCtx = null;
+    function playTone(freq, duration, type='sine') {
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        } catch(e) {}
+    }
+
+    function playSnapSound() {
+        playTone(480, 0.15, 'triangle');
+        setTimeout(() => playTone(720, 0.25, 'sine'), 80);
+    }
+
+    function playVictoryFanfare() {
+        const notes = [440, 554, 659, 880, 1108, 1318];
+        notes.forEach((freq, i) => {
+            setTimeout(() => playTone(freq, 0.4, 'triangle'), i * 140);
+        });
+    }
+
+    // --- Master QR Puzzle State Updater ---
+    function updatePuzzle(scannedCount, withSound = false) {
+        for (let i = 1; i <= 5; i++) {
+            const piece = document.getElementById(`piece-${i}`);
+            const lock = document.getElementById(`lock-icon-${i}`);
+            if (!piece) continue;
+            if (i <= scannedCount) {
+                piece.classList.remove('piece-locked');
+                piece.classList.add('piece-unlocked');
+                if (lock) lock.classList.add('hidden');
+            } else {
+                piece.classList.add('piece-locked');
+                piece.classList.remove('piece-unlocked');
+                if (lock) lock.classList.remove('hidden');
+            }
+        }
+
+        const chestGlow = document.getElementById('chestGlow');
+        const treasureEmitters = document.getElementById('treasureEmitters');
+        const chestLidImg = document.getElementById('chestLidImg');
+
+        if (scannedCount >= 5) {
+            if (chestGlow) chestGlow.classList.remove('hidden');
+            if (treasureEmitters) treasureEmitters.classList.remove('hidden');
+        } else {
+            if (chestGlow) chestGlow.classList.add('hidden');
+            if (treasureEmitters) treasureEmitters.classList.add('hidden');
+            if (chestLidImg) chestLidImg.classList.remove('lid-anim-open-wide');
+        }
+
+        if (withSound && scannedCount < 5) {
+            playSnapSound();
+        }
+    }
+
+    function triggerPuzzleFinale() {
+        playVictoryFanfare();
+        const qrFrame = document.getElementById('qrFrame');
+        if (qrFrame) qrFrame.classList.add('pulse-gold', 'glow-gold');
+
+        // Open chest lid wide on victory!
+        const chestLidImg = document.getElementById('chestLidImg');
+        if (chestLidImg) {
+            chestLidImg.classList.remove('lid-anim-loop');
+            chestLidImg.classList.add('lid-anim-open-wide');
+        }
+
+        const shockwave = document.getElementById('shockwaveRing');
+        if (shockwave) {
+            shockwave.classList.remove('hidden', 'shockwave-anim');
+            void shockwave.offsetWidth;
+            shockwave.classList.add('shockwave-anim');
+        }
+
+        const victory = document.getElementById('victoryOverlay');
+        if (victory) {
+            setTimeout(() => {
+                victory.classList.remove('hidden');
+                victory.classList.remove('scale-90');
+                victory.classList.add('scale-100');
+            }, 500);
+        }
+
+        fireConfettiBurst();
+    }
+
+    // --- 3D Confetti Particles ---
+    const confettiCanvas = document.getElementById('huntConfettiCanvas');
+    const confettiCtx = confettiCanvas ? confettiCanvas.getContext('2d') : null;
+    let confettiParticles = [];
+
+    function resizeConfetti() {
+        if (!confettiCanvas) return;
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeConfetti);
+    resizeConfetti();
+
+    function fireConfettiBurst() {
+        if (!confettiCanvas || !confettiCtx) return;
+        confettiParticles = [];
+        const colors = ['#f59e0b', '#10b981', '#38bdf8', '#a855f7', '#ec4899', '#ffffff'];
+        for (let i = 0; i < 90; i++) {
+            confettiParticles.push({
+                x: confettiCanvas.width / 2,
+                y: confettiCanvas.height / 2,
+                vx: (Math.random() - 0.5) * 16,
+                vy: (Math.random() - 0.8) * 18,
+                size: Math.random() * 8 + 4,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                rot: Math.random() * 360,
+                vrot: (Math.random() - 0.5) * 10,
+                alpha: 1
+            });
+        }
+        animateConfetti();
+    }
+
+    function animateConfetti() {
+        if (!confettiCtx || !confettiCanvas) return;
+        confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        let activeCount = 0;
+        confettiParticles.forEach(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.45;
+            p.rot += p.vrot;
+            p.alpha -= 0.008;
+
+            if (p.alpha > 0) {
+                activeCount++;
+                confettiCtx.save();
+                confettiCtx.globalAlpha = Math.max(0, p.alpha);
+                confettiCtx.translate(p.x, p.y);
+                confettiCtx.rotate((p.rot * Math.PI) / 180);
+                confettiCtx.fillStyle = p.color;
+                confettiCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+                confettiCtx.restore();
+            }
+        });
+        if (activeCount > 0) {
+            requestAnimationFrame(animateConfetti);
+        }
+    }
+
+    // Initialize puzzle state on page load
+    document.addEventListener("DOMContentLoaded", () => {
+        updatePuzzle({{ scanned_count }}, false);
+    });
 </script>
 {% endblock %}

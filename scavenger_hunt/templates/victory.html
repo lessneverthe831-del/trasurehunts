@@ -58,7 +58,7 @@
             </div>
             <div class="flex justify-between items-center py-1.5">
                 <span class="text-slate-400">සම්පූර්ණ කළ වේලාව (Completed At):</span>
-                <span class="font-mono text-amber-300 font-semibold">{{ user.completed_at if user.completed_at else 'Just Now' }}</span>
+                <span class="font-mono text-amber-300 font-semibold">{{ user.completed_at | sl_time if user.completed_at else 'Just Now' }}</span>
             </div>
         </div>
 

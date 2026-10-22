@@ -40,7 +40,7 @@
       <span class="mono" style="color: var(--text-bright);">{{ scans|length }} Locations Verified</span>
 
       <span style="color: #64748b;">Completed At:</span>
-      <span class="mono" style="color: #94a3b8;">{{ user.completed_at }} UTC</span>
+      <span class="mono" style="color: #94a3b8;">{{ user.completed_at | sl_time }}</span>
     </div>
   </div>
 
@@ -53,7 +53,7 @@
           <th>Stage</th>
           <th>Location</th>
           <th>Marker Code</th>
-          <th>Timestamp (UTC)</th>
+          <th>Timestamp</th>
         </tr>
       </thead>
       <tbody>
@@ -62,7 +62,7 @@
             <td><span class="badge badge-success mono">Stage {{ scan.stage_number }}</span></td>
             <td style="font-weight: 600; color: var(--text-bright);">{{ scan.location_name }}</td>
             <td class="mono" style="color: #38bdf8;">{{ scan.checkpoint_id }}</td>
-            <td class="mono" style="color: #94a3b8;">{{ scan.scanned_at }}</td>
+            <td class="mono" style="color: #94a3b8;">{{ scan.scanned_at | sl_time }}</td>
           </tr>
         {% endfor %}
       </tbody>

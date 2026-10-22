@@ -1,5 +1,8 @@
 import io
 import json
+import os
+import re
+import time
 from datetime import datetime, timezone
 from functools import wraps
 from flask import (
@@ -13,8 +16,31 @@ from config import SECRET_KEY, DEFAULT_MASTER_PIN
 import database
 import whatsapp_service
 
+# Ensure system timezone is set to Asia/Colombo (Sri Lanka Time) on Linux/Render
+os.environ['TZ'] = 'Asia/Colombo'
+if hasattr(time, 'tzset'):
+    try:
+        time.tzset()
+    except Exception:
+        pass
+
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+
+# Custom Jinja Filter for Sri Lanka Time Display (12-hour with AM/PM)
+@app.template_filter("sl_time")
+def sl_time_filter(val):
+    if not val:
+        return ""
+    val_str = str(val).strip()
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})", val_str)
+    if not m:
+        return val_str
+    y, mo, d, h, mi, s = m.groups()
+    hour = int(h)
+    ampm = "PM" if hour >= 12 else "AM"
+    hour12 = hour % 12 or 12
+    return f"{y}-{mo}-{d} {hour12:02d}:{mi}:{s} {ampm}"
 
 # Ensure tables and initial seeds are present
 database.init_db()

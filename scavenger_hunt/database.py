@@ -1,8 +1,19 @@
 import sqlite3
 import json
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from config import DATABASE_PATH, DEFAULT_MASTER_PIN
+
+# Sri Lanka Standard Time (Asia/Colombo, UTC +05:30)
+SRI_LANKA_TZ = timezone(timedelta(hours=5, minutes=30))
+
+def get_now_sl() -> datetime:
+    """Returns current datetime in Sri Lanka Standard Time (UTC+05:30)."""
+    return datetime.now(SRI_LANKA_TZ)
+
+def get_now_sl_str() -> str:
+    """Returns formatted 'YYYY-MM-DD HH:MM:SS' string in Sri Lanka Standard Time."""
+    return datetime.now(SRI_LANKA_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def get_db():
@@ -112,6 +123,22 @@ def init_db():
             conn.execute("ALTER TABLE users ADD COLUMN is_phone_verified INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
             pass # already exists
+
+        # One-time Migration: Convert any legacy UTC timestamps to Sri Lanka Standard Time (+05:30)
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM settings WHERE key = 'timezone_migrated_sl'")
+            if not cur.fetchone():
+                conn.execute("UPDATE activity_logs SET created_at = datetime(created_at, '+5 hours', '+30 minutes') WHERE created_at IS NOT NULL AND created_at != ''")
+                conn.execute("UPDATE users SET created_at = datetime(created_at, '+5 hours', '+30 minutes') WHERE created_at IS NOT NULL AND created_at != ''")
+                conn.execute("UPDATE users SET approved_at = datetime(approved_at, '+5 hours', '+30 minutes') WHERE approved_at IS NOT NULL AND approved_at != ''")
+                conn.execute("UPDATE users SET completed_at = datetime(completed_at, '+5 hours', '+30 minutes') WHERE completed_at IS NOT NULL AND completed_at != ''")
+                conn.execute("UPDATE scan_logs SET scanned_at = datetime(scanned_at, '+5 hours', '+30 minutes') WHERE scanned_at IS NOT NULL AND scanned_at != ''")
+                conn.execute("UPDATE otp_verifications SET created_at = datetime(created_at, '+5 hours', '+30 minutes') WHERE created_at IS NOT NULL AND created_at != ''")
+                conn.execute("UPDATE otp_verifications SET expires_at = datetime(expires_at, '+5 hours', '+30 minutes') WHERE expires_at IS NOT NULL AND expires_at != ''")
+                conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('timezone_migrated_sl', 'true')")
+        except Exception as e:
+            print(f"[TIMEZONE MIGRATION] Notice: {e}")
 
         # Seed Settings if not present
         cur = conn.cursor()
@@ -257,7 +284,7 @@ def log_user_activity(user_id: int, action_type: str, title: str, description: s
     Records an activity audit log entry for the contestant.
     """
     conn = get_db()
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_sl_str()
     with conn:
         conn.execute("""
             INSERT INTO activity_logs (user_id, action_type, title, description, details_json, created_at)
@@ -353,12 +380,13 @@ def check_duplicate_user(id_number: str, whatsapp: str, exclude_user_id: int = N
 
 def create_user(username: str, id_number: str, whatsapp: str, age_category: str, ip: str = None, is_phone_verified: int = 1) -> int:
     conn = get_db()
+    now_str = get_now_sl_str()
     with conn:
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO users (username, id_number, whatsapp, age_category, status, ip_address, is_phone_verified)
-            VALUES (?, ?, ?, ?, 'waiting_approval', ?, ?)
-        """, (username.strip(), id_number.strip(), whatsapp.strip(), age_category.strip(), ip, is_phone_verified))
+            INSERT INTO users (username, id_number, whatsapp, age_category, status, ip_address, is_phone_verified, created_at)
+            VALUES (?, ?, ?, ?, 'waiting_approval', ?, ?, ?)
+        """, (username.strip(), id_number.strip(), whatsapp.strip(), age_category.strip(), ip, is_phone_verified, now_str))
         user_id = cur.lastrowid
     conn.close()
 
@@ -489,7 +517,7 @@ def approve_user(user_id: int):
     sample_qr_count = min(5, len(all_qr_ids))
     assigned_qr_ids = random.sample(all_qr_ids, sample_qr_count) if all_qr_ids else []
 
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_sl_str()
 
     with conn:
         conn.execute("""
@@ -829,15 +857,16 @@ def process_qr_scan(user_id: int, scanned_code_raw: str) -> dict:
 
     qr_obj = get_qr_code_by_code(code_str)
     conn = get_db()
+    now_str = get_now_sl_str()
 
     # Case 1: Trap / Decoy QR Code!
     if qr_obj and qr_obj["is_trap"] == 1:
         msg = f"⚠️ වැරදි QR කේතයකි! ({qr_obj['title']}) මෙය උගුල් කේතයකි! (Trap / Wrong QR Code detected!)"
         with conn:
             conn.execute("""
-                INSERT INTO scan_logs (user_id, scanned_code, result, message)
-                VALUES (?, ?, 'trap', ?)
-            """, (user_id, code_str, msg))
+                INSERT INTO scan_logs (user_id, scanned_code, result, message, scanned_at)
+                VALUES (?, ?, 'trap', ?, ?)
+            """, (user_id, code_str, msg, now_str))
         conn.close()
 
         log_user_activity(
@@ -862,9 +891,9 @@ def process_qr_scan(user_id: int, scanned_code_raw: str) -> dict:
         msg = f"❌ අවලංගු QR කේතයකි! '{code_str}' වලංගු නොවේ. (Invalid / Unknown QR code!)"
         with conn:
             conn.execute("""
-                INSERT INTO scan_logs (user_id, scanned_code, result, message)
-                VALUES (?, ?, 'invalid', ?)
-            """, (user_id, code_str, msg))
+                INSERT INTO scan_logs (user_id, scanned_code, result, message, scanned_at)
+                VALUES (?, ?, 'invalid', ?, ?)
+            """, (user_id, code_str, msg, now_str))
         conn.close()
 
         log_user_activity(
@@ -929,9 +958,9 @@ def process_qr_scan(user_id: int, scanned_code_raw: str) -> dict:
         )
         with conn:
             conn.execute("""
-                INSERT INTO scan_logs (user_id, scanned_code, result, message)
-                VALUES (?, ?, 'out_of_order', ?)
-            """, (user_id, code_str, msg))
+                INSERT INTO scan_logs (user_id, scanned_code, result, message, scanned_at)
+                VALUES (?, ?, 'out_of_order', ?, ?)
+            """, (user_id, code_str, msg, now_str))
         conn.close()
 
         log_user_activity(
@@ -956,9 +985,9 @@ def process_qr_scan(user_id: int, scanned_code_raw: str) -> dict:
         msg = f"⚠️ වැරදියි! මෙම QR කේතය ඔබගේ ඉලක්ක ලැයිස්තුවට අයත් නොවේ. (Wrong QR! Not part of your 5 targets)."
         with conn:
             conn.execute("""
-                INSERT INTO scan_logs (user_id, scanned_code, result, message)
-                VALUES (?, ?, 'unassigned', ?)
-            """, (user_id, code_str, msg))
+                INSERT INTO scan_logs (user_id, scanned_code, result, message, scanned_at)
+                VALUES (?, ?, 'unassigned', ?, ?)
+            """, (user_id, code_str, msg, now_str))
         conn.close()
 
         log_user_activity(
@@ -982,7 +1011,7 @@ def process_qr_scan(user_id: int, scanned_code_raw: str) -> dict:
     scanned_qr_ids.append(qr_obj["id"])
     new_count = len(scanned_qr_ids)
     is_finished = (new_count >= total_target)
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_sl_str()
 
     with conn:
         if is_finished:
@@ -1002,9 +1031,9 @@ def process_qr_scan(user_id: int, scanned_code_raw: str) -> dict:
 
         log_msg = f"Sequential Checkpoint Cleared: #{current_step_num} - {qr_obj['title']} ({new_count}/{total_target})"
         conn.execute("""
-            INSERT INTO scan_logs (user_id, scanned_code, result, message)
-            VALUES (?, ?, 'valid', ?)
-        """, (user_id, code_str, log_msg))
+            INSERT INTO scan_logs (user_id, scanned_code, result, message, scanned_at)
+            VALUES (?, ?, 'valid', ?, ?)
+        """, (user_id, code_str, log_msg, now_str))
     conn.close()
 
     # Determine next checkpoint object if not finished
@@ -1232,7 +1261,7 @@ def get_completed_contestants_summary():
 
 def save_raffle_winner(user_id: int, prize_title: str = "Grand Prize"):
     conn = get_db()
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_sl_str()
     with conn:
         cur = conn.cursor()
         cur.execute("""
@@ -1306,7 +1335,7 @@ def seed_sample_raffle_participants(target_total: int = 150):
         return 0
 
     conn = get_db()
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_sl_str()
 
     # Fetch 5 valid QRs and 5 Qs to mock assignment
     cur = conn.cursor()
