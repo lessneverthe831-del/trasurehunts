@@ -655,35 +655,61 @@
                     </div>
                 </div>
 
-                <!-- Master PIN Card -->
-                <div class="glass-panel p-6 rounded-3xl border border-slate-800 shadow-xl space-y-4">
-                    <h3 class="text-base font-bold text-white flex items-center space-x-2">
-                        <i class="fa-solid fa-key text-brand-400"></i>
-                        <span>Master PIN අංකය වෙනස් කිරීම (Change Master PIN)</span>
-                    </h3>
-                    <p class="text-xs text-slate-400">
-                        Admin Panel වෙත පිවිසීමට භාවිතා කරන Master PIN අංකය මෙතැනින් යාවත්කාලීන කළ හැක.
-                    </p>
-
-                    <form id="changePinForm" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1">වත්මන් Master PIN (Current PIN)</label>
-                            <input type="text" readonly value="{{ master_pin }}"
-                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/50 border border-slate-800 text-slate-400 text-xs font-mono">
+                <!-- Master PIN & WhatsApp OTP Quick Control Card -->
+                <div class="glass-panel p-6 rounded-3xl border border-slate-800 shadow-xl space-y-6">
+                    
+                    <!-- WhatsApp OTP Quick On/Off Toggle (Requested inside Master PIN Section) -->
+                    <div class="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 flex items-center justify-between shadow-inner">
+                        <div class="space-y-1">
+                            <div class="flex items-center space-x-2">
+                                <i class="fa-brands fa-whatsapp text-emerald-400 text-lg"></i>
+                                <span class="font-bold text-white text-sm">WhatsApp OTP සත්‍යාපනය (WhatsApp OTP Toggle)</span>
+                                <span id="masterPinOtpBadge" class="text-[10px] font-bold px-2.5 py-0.5 rounded-full {% if whatsapp_settings.enabled %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}bg-rose-500/20 text-rose-400 border border-rose-500/30{% endif %}">
+                                    {% if whatsapp_settings.enabled %}ON (සක්‍රීයයි){% else %}OFF (අක්‍රීයයි){% endif %}
+                                </span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 max-w-md">
+                                ටික් එක <b>OFF</b> කළ විට, තරඟකරුවන්ට කිසිදු WhatsApp OTP විමසීමක් නොපෙනී සෘජුවම NIC අංකය සහ උපන් දිනය මඟින් ලියාපදිංචි විය හැක.
+                            </p>
                         </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1">නව Master PIN (New PIN - 4+ digits)</label>
-                            <input type="password" id="newPinInput" required minlength="4" placeholder="Enter new PIN"
-                                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:ring-2 focus:ring-brand-500">
+                        <div class="flex items-center space-x-3">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="masterPinOtpToggle" class="sr-only peer" {% if whatsapp_settings.enabled %}checked{% endif %}>
+                                <div class="w-12 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                            </label>
                         </div>
+                    </div>
 
-                        <button type="submit" id="btnUpdatePin"
-                            class="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md transition-all flex items-center space-x-2">
-                            <i class="fa-solid fa-check"></i>
-                            <span>නව PIN අංකය සුරකින්න (Save PIN)</span>
-                        </button>
-                    </form>
+                    <!-- Master PIN Card Form -->
+                    <div class="space-y-4 pt-2 border-t border-slate-800">
+                        <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                            <i class="fa-solid fa-key text-brand-400"></i>
+                            <span>Master PIN අංකය වෙනස් කිරීම (Change Master PIN)</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">
+                            Admin Panel වෙත පිවිසීමට භාවිතා කරන Master PIN අංකය මෙතැනින් යාවත්කාලීන කළ හැක.
+                        </p>
+
+                        <form id="changePinForm" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">වත්මන් Master PIN (Current PIN)</label>
+                                <input type="text" readonly value="{{ master_pin }}"
+                                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/50 border border-slate-800 text-slate-400 text-xs font-mono">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">නව Master PIN (New PIN - 4+ digits)</label>
+                                <input type="password" id="newPinInput" required minlength="4" placeholder="Enter new PIN"
+                                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:ring-2 focus:ring-brand-500">
+                            </div>
+
+                            <button type="submit" id="btnUpdatePin"
+                                class="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md transition-all flex items-center space-x-2">
+                                <i class="fa-solid fa-check"></i>
+                                <span>නව PIN අංකය සුරකින්න (Save PIN)</span>
+                            </button>
+                        </form>
+                    </div>
                 </div>
 
             </div>
@@ -980,7 +1006,10 @@
                         </div>
                         <div class="text-[10px] text-slate-400 font-mono mt-0.5">${formatDisplayTime(u.created_at)}</div>
                     </td>
-                    <td class="py-3 px-3 font-mono text-indigo-300">${escapeHtml(u.id_number)}</td>
+                    <td class="py-3 px-3 font-mono text-indigo-300">
+                        <div>${escapeHtml(u.id_number)}</div>
+                        ${u.dob ? `<div class="text-[10px] text-slate-400 font-sans mt-0.5"><i class="fa-solid fa-cake-candles text-[9px] text-amber-400 mr-1"></i>${escapeHtml(u.dob)}</div>` : ''}
+                    </td>
                     <td class="py-3 px-3 font-mono text-emerald-400">
                         <a href="https://wa.me/${escapeHtml(u.whatsapp).replace(/[^0-9]/g, '')}" target="_blank" class="hover:underline flex items-center space-x-1">
                             <i class="fa-brands fa-whatsapp"></i>
@@ -1066,7 +1095,7 @@
             const u = d.user;
 
             document.getElementById('modalUserName').textContent = u.username;
-            document.getElementById('modalUserDetails').textContent = `ID: ${u.id_number} • WhatsApp: ${u.whatsapp} • Age: ${u.age_category === 'under_18' ? 'Under 18' : '18+'}`;
+            document.getElementById('modalUserDetails').textContent = `NIC: ${u.id_number} • DOB: ${u.dob || 'N/A'} • WhatsApp: ${u.whatsapp} • Age: ${u.age_category === 'under_18' ? 'Under 18' : '18+'}`;
 
             // Status badge
             const statusEl = document.getElementById('modalUserStatusBadge');
@@ -1366,7 +1395,10 @@
                             </span>
                         </div>
                     </td>
-                    <td class="py-2.5 px-3 font-mono text-indigo-300">${escapeHtml(u.id_number)}</td>
+                    <td class="py-2.5 px-3 font-mono text-indigo-300">
+                        <div>${escapeHtml(u.id_number)}</div>
+                        ${u.dob ? `<div class="text-[10px] text-slate-400 font-sans mt-0.5"><i class="fa-solid fa-cake-candles text-[9px] text-amber-400 mr-1"></i>${escapeHtml(u.dob)}</div>` : ''}
+                    </td>
                     <td class="py-2.5 px-3 font-mono text-emerald-400">
                         <a href="https://wa.me/${escapeHtml(u.whatsapp).replace(/[^0-9]/g, '')}" target="_blank" class="hover:underline flex items-center space-x-1">
                             <i class="fa-brands fa-whatsapp"></i>
@@ -1640,6 +1672,57 @@
         }
     });
 
+    // Master PIN Section - Quick WhatsApp OTP Toggle
+    const masterPinOtpToggle = document.getElementById("masterPinOtpToggle");
+    const masterPinOtpBadge = document.getElementById("masterPinOtpBadge");
+    const settingWhatsappEnabled = document.getElementById("settingWhatsappEnabled");
+
+    function updateOtpBadges(isEnabled) {
+        if (masterPinOtpBadge) {
+            if (isEnabled) {
+                masterPinOtpBadge.textContent = "ON (සක්‍රීයයි)";
+                masterPinOtpBadge.className = "text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+            } else {
+                masterPinOtpBadge.textContent = "OFF (අක්‍රීයයි)";
+                masterPinOtpBadge.className = "text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30";
+            }
+        }
+        if (masterPinOtpToggle) masterPinOtpToggle.checked = isEnabled;
+        if (settingWhatsappEnabled) settingWhatsappEnabled.checked = isEnabled;
+    }
+
+    if (masterPinOtpToggle) {
+        masterPinOtpToggle.addEventListener("change", async function() {
+            const targetState = this.checked;
+            try {
+                const res = await fetch("{{ url_for('api_admin_toggle_otp') }}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ enabled: targetState })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    updateOtpBadges(data.enabled);
+                } else {
+                    alert("Error: " + (data.message || "Failed to update OTP status"));
+                    masterPinOtpToggle.checked = !targetState;
+                }
+            } catch (err) {
+                alert("Network error: " + err);
+                masterPinOtpToggle.checked = !targetState;
+            }
+        });
+    }
+
+    if (settingWhatsappEnabled) {
+        settingWhatsappEnabled.addEventListener("change", function() {
+            if (masterPinOtpToggle) {
+                masterPinOtpToggle.checked = this.checked;
+                updateOtpBadges(this.checked);
+            }
+        });
+    }
+
     // Gateway Provider Dynamic UI
     function updateGatewayUI() {
         const typeEl = document.getElementById("settingWhatsappGatewayType");
@@ -1776,6 +1859,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
+                    updateOtpBadges(payload.enabled);
                     alert("WhatsApp Gateway settings updated successfully!");
                 } else {
                     alert(data.message || "Failed to update settings.");

@@ -124,6 +124,12 @@ def init_db():
         except sqlite3.OperationalError:
             pass # already exists
 
+        # Migration: Ensure dob (Date of Birth) column in users table
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN dob TEXT")
+        except sqlite3.OperationalError:
+            pass # already exists
+
         # One-time Migration: Convert any legacy UTC timestamps to Sri Lanka Standard Time (+05:30)
         try:
             cur = conn.cursor()
@@ -367,9 +373,9 @@ def check_duplicate_user(id_number: str, whatsapp: str, exclude_user_id: int = N
         if exclude_user_id and u["id"] == exclude_user_id:
             continue
 
-        # Check National / University ID number
+        # Check National Identity Card (NIC) number
         if clean_id and _norm_id(u["id_number"]) == clean_id:
-            return True, "id_number", f"මෙම හැඳුනුම්පත් / විශ්වවිද්‍යාල අංකය ({id_number}) දැනටමත් ලියාපදිංචි කර ඇත. එක් අයෙකුට ලියාපදිංචි විය හැක්කේ එක් වරක් පමණි. (This ID number is already registered)."
+            return True, "id_number", f"මෙම හැඳුනුම්පත් අංකය ({id_number}) දැනටමත් ලියාපදිංචි කර ඇත. එක් අයෙකුට ලියාපදිංචි විය හැක්කේ එක් වරක් පමණි. (This NIC number is already registered)."
 
         # Check WhatsApp phone number
         if clean_phone and _norm_phone(u["whatsapp"]) == clean_phone:
@@ -378,25 +384,26 @@ def check_duplicate_user(id_number: str, whatsapp: str, exclude_user_id: int = N
     return False, "", ""
 
 
-def create_user(username: str, id_number: str, whatsapp: str, age_category: str, ip: str = None, is_phone_verified: int = 1) -> int:
+def create_user(username: str, id_number: str, whatsapp: str, age_category: str, ip: str = None, is_phone_verified: int = 1, dob: str = None) -> int:
     conn = get_db()
     now_str = get_now_sl_str()
     with conn:
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO users (username, id_number, whatsapp, age_category, status, ip_address, is_phone_verified, created_at)
-            VALUES (?, ?, ?, ?, 'waiting_approval', ?, ?, ?)
-        """, (username.strip(), id_number.strip(), whatsapp.strip(), age_category.strip(), ip, is_phone_verified, now_str))
+            INSERT INTO users (username, id_number, whatsapp, age_category, status, ip_address, is_phone_verified, dob, created_at)
+            VALUES (?, ?, ?, ?, 'waiting_approval', ?, ?, ?, ?)
+        """, (username.strip(), id_number.strip(), whatsapp.strip(), age_category.strip(), ip, is_phone_verified, dob.strip() if dob else None, now_str))
         user_id = cur.lastrowid
     conn.close()
 
     age_label = "18ට අඩු (Under 18)" if age_category == "under_18" else "18ට වැඩි (18+)"
     phone_label = "තහවුරු විය (Verified ✓)" if is_phone_verified else "තහවුරු කර නැත"
+    dob_label = f", උපන්දිනය: {dob.strip()}" if dob else ""
     log_user_activity(
         user_id=user_id,
         action_type="registered",
         title="ලියාපදිංචි විය (Registered for Treasure Hunt)",
-        description=f"තරඟකරු ලියාපදිංචි වී Admin අනුමැතිය අපේක්ෂාවෙන් රැඳී සිටියි. (ID: {id_number}, WhatsApp: {whatsapp} [{phone_label}], වයස: {age_label})"
+        description=f"තරඟකරු ලියාපදිංචි වී Admin අනුමැතිය අපේක්ෂාවෙන් රැඳී සිටියි. (NIC: {id_number}{dob_label}, WhatsApp: {whatsapp} [{phone_label}], වයස: {age_label})"
     )
     return user_id
 

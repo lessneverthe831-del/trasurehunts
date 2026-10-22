@@ -15,6 +15,7 @@ from qrcode.image.pil import PilImage
 from config import SECRET_KEY, DEFAULT_MASTER_PIN
 import database
 import whatsapp_service
+import nic_service
 
 # Ensure system timezone is set to Asia/Colombo (Sri Lanka Time) on Linux/Render
 os.environ['TZ'] = 'Asia/Colombo'
@@ -119,27 +120,48 @@ def api_check_duplicate():
     })
 
 
+@app.route("/api/validate-nic", methods=["POST"])
+def api_validate_nic():
+    data = request.get_json(silent=True) or {}
+    nic = data.get("nic", "").strip()
+    dob = data.get("dob", "").strip()
+    is_valid, msg, details = nic_service.validate_nic_with_dob(nic, dob)
+    return jsonify({
+        "valid": is_valid,
+        "message": msg,
+        "details": details
+    })
+
+
 @app.route("/api/otp/send", methods=["POST"])
 def api_otp_send():
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
     id_number = data.get("id_number", "").strip()
+    dob = data.get("dob", "").strip()
     whatsapp = data.get("whatsapp", "").strip()
     age_category = data.get("age_category", "").strip()
 
-    if not username or not id_number or not whatsapp or not age_category:
+    if not username or not id_number or not dob or not whatsapp:
         return jsonify({
             "success": False,
-            "message": "කරුණාකර සියලු විස්තර නිවැරදිව පුරවන්න. (Please fill in all required fields)."
+            "message": "කරුණාකර සියලු විස්තර (නම, හැඳුනුම්පත, උපන්දිනය, දුරකථන අංකය) නිවැරදිව පුරවන්න."
         }), 400
 
-    if age_category not in ["under_18", "18_plus"]:
+    # 1. Validate NIC format and verify that DOB matches NIC
+    is_nic_valid, nic_msg, nic_details = nic_service.validate_nic_with_dob(id_number, dob)
+    if not is_nic_valid:
         return jsonify({
             "success": False,
-            "message": "වලංගු වයස් කාණ්ඩයක් තෝරන්න. (Invalid age category)."
+            "message": nic_msg
         }), 400
 
-    # 1. Check for duplicates in DB
+    if not age_category:
+        age_category = nic_service.get_age_category_from_dob(dob)
+    elif age_category not in ["under_18", "18_plus"]:
+        age_category = nic_service.get_age_category_from_dob(dob)
+
+    # 2. Check for duplicates in DB
     is_dup, field, message = database.check_duplicate_user(id_number, whatsapp)
     if is_dup:
         return jsonify({
@@ -149,12 +171,12 @@ def api_otp_send():
             "message": message
         }), 409
 
-    # 2. Check if WhatsApp OTP requirement is enabled
+    # 3. Check if WhatsApp OTP requirement is enabled
     otp_enabled = database.get_setting("whatsapp_otp_enabled", "true") == "true"
     if not otp_enabled:
         # If OTP is disabled by admin, skip OTP step and register directly
         ip = get_client_ip()
-        user_id = database.create_user(username, id_number, whatsapp, age_category, ip, is_phone_verified=0)
+        user_id = database.create_user(username, id_number, whatsapp, age_category, ip, is_phone_verified=0, dob=dob)
         session["user_id"] = user_id
         session["username"] = username
         return jsonify({
@@ -163,7 +185,7 @@ def api_otp_send():
             "redirect": url_for("waiting")
         })
 
-    # 3. Generate & Dispatch OTP
+    # 4. Generate & Dispatch OTP
     res = whatsapp_service.generate_and_send_otp(whatsapp, id_number)
     return jsonify(res)
 
@@ -173,17 +195,29 @@ def api_otp_verify_and_register():
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
     id_number = data.get("id_number", "").strip()
+    dob = data.get("dob", "").strip()
     whatsapp = data.get("whatsapp", "").strip()
     age_category = data.get("age_category", "").strip()
     otp_code = data.get("otp", "").strip()
 
-    if not username or not id_number or not whatsapp or not age_category or not otp_code:
+    if not username or not id_number or not dob or not whatsapp or not otp_code:
         return jsonify({
             "success": False,
-            "message": "සියලු තොරතුරු සහ OTP කේතය ඇතුල් කරන්න. (All fields and OTP are required)."
+            "message": "සියලු තොරතුරු (නම, හැඳුනුම්පත, උපන්දිනය, දුරකථන අංකය) සහ OTP කේතය ඇතුල් කරන්න."
         }), 400
 
-    # 1. Final duplicate check
+    # 1. Validate NIC & DOB match
+    is_nic_valid, nic_msg, nic_details = nic_service.validate_nic_with_dob(id_number, dob)
+    if not is_nic_valid:
+        return jsonify({
+            "success": False,
+            "message": nic_msg
+        }), 400
+
+    if not age_category:
+        age_category = nic_service.get_age_category_from_dob(dob)
+
+    # 2. Final duplicate check
     is_dup, field, message = database.check_duplicate_user(id_number, whatsapp)
     if is_dup:
         return jsonify({
@@ -193,14 +227,14 @@ def api_otp_verify_and_register():
             "message": message
         }), 409
 
-    # 2. Verify OTP
+    # 3. Verify OTP
     v_res = whatsapp_service.verify_otp_code(whatsapp, otp_code)
     if not v_res.get("success"):
         return jsonify(v_res), 400
 
-    # 3. Create user in DB
+    # 4. Create user in DB
     ip = get_client_ip()
-    user_id = database.create_user(username, id_number, whatsapp, age_category, ip, is_phone_verified=1)
+    user_id = database.create_user(username, id_number, whatsapp, age_category, ip, is_phone_verified=1, dob=dob)
     session["user_id"] = user_id
     session["username"] = username
 
@@ -213,45 +247,55 @@ def api_otp_verify_and_register():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
+    otp_enabled = database.get_setting("whatsapp_otp_enabled", "true") == "true"
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
     if request.method == "GET":
         user = get_logged_in_user()
         if user and user["status"] != "rejected":
             return redirect(url_for("index"))
-        return render_template("register.html")
+        return render_template("register.html", otp_enabled=otp_enabled, today_str=today_str)
 
     username = request.form.get("username", "").strip()
     id_number = request.form.get("id_number", "").strip()
+    dob = request.form.get("dob", "").strip()
     whatsapp = request.form.get("whatsapp", "").strip()
     age_category = request.form.get("age_category", "").strip()
     otp_code = request.form.get("otp", "").strip()
 
-    if not username or not id_number or not whatsapp or not age_category:
-        flash("කරුණාකර සියලු විස්තර නිවැරදිව පුරවන්න. (Please fill in all required fields).", "danger")
-        return render_template("register.html", form=request.form)
+    if not username or not id_number or not dob or not whatsapp:
+        flash("කරුණාකර සියලු විස්තර (නම, හැඳුනුම්පත, උපන්දිනය, දුරකථන අංකය) නිවැරදිව පුරවන්න.", "danger")
+        return render_template("register.html", form=request.form, otp_enabled=otp_enabled, today_str=today_str)
 
-    if age_category not in ["under_18", "18_plus"]:
-        flash("වලංගු වයස් කාණ්ඩයක් තෝරන්න. (Please select a valid age category).", "danger")
-        return render_template("register.html", form=request.form)
+    # Validate NIC and DOB match
+    is_nic_valid, nic_msg, nic_details = nic_service.validate_nic_with_dob(id_number, dob)
+    if not is_nic_valid:
+        flash(nic_msg, "danger")
+        return render_template("register.html", form=request.form, otp_enabled=otp_enabled, today_str=today_str)
+
+    if not age_category:
+        age_category = nic_service.get_age_category_from_dob(dob)
+    elif age_category not in ["under_18", "18_plus"]:
+        age_category = nic_service.get_age_category_from_dob(dob)
 
     # Check duplicates
     is_dup, field, dup_msg = database.check_duplicate_user(id_number, whatsapp)
     if is_dup:
         flash(dup_msg, "danger")
-        return render_template("register.html", form=request.form)
+        return render_template("register.html", form=request.form, otp_enabled=otp_enabled, today_str=today_str)
 
-    otp_enabled = database.get_setting("whatsapp_otp_enabled", "true") == "true"
     if otp_enabled:
         if not otp_code:
             flash("WhatsApp OTP කේතය ඇතුල් කිරීම අනිවාර්ය වේ. (WhatsApp OTP verification required).", "warning")
-            return render_template("register.html", form=request.form, require_otp=True)
+            return render_template("register.html", form=request.form, require_otp=True, otp_enabled=otp_enabled, today_str=today_str)
 
         v_res = whatsapp_service.verify_otp_code(whatsapp, otp_code)
         if not v_res.get("success"):
             flash(v_res.get("message"), "danger")
-            return render_template("register.html", form=request.form, require_otp=True)
+            return render_template("register.html", form=request.form, require_otp=True, otp_enabled=otp_enabled, today_str=today_str)
 
     ip = get_client_ip()
-    user_id = database.create_user(username, id_number, whatsapp, age_category, ip, is_phone_verified=1 if otp_enabled else 0)
+    user_id = database.create_user(username, id_number, whatsapp, age_category, ip, is_phone_verified=1 if otp_enabled else 0, dob=dob)
     session["user_id"] = user_id
     session["username"] = username
 
@@ -689,6 +733,24 @@ def api_admin_change_pin():
 
     database.set_setting("master_pin", new_pin)
     return jsonify({"success": True, "message": "Master PIN updated successfully."})
+
+
+@app.route("/api/admin/settings/toggle-otp", methods=["POST"])
+@require_admin
+def api_admin_toggle_otp():
+    data = request.get_json(silent=True) or {}
+    enabled = data.get("enabled")
+    if enabled is None:
+        current = database.get_setting("whatsapp_otp_enabled", "true") == "true"
+        enabled = not current
+    val_str = "true" if enabled in [True, "true", "1", "on", 1] else "false"
+    database.set_setting("whatsapp_otp_enabled", val_str)
+    is_on = val_str == "true"
+    return jsonify({
+        "success": True, 
+        "enabled": is_on,
+        "message": "WhatsApp OTP සක්‍රීය කරන ලදී (Enabled)!" if is_on else "WhatsApp OTP අක්‍රීය කරන ලදී (Disabled)! තරඟකරුවන්ට දැන් OTP අවශ්‍ය නොවේ."
+    })
 
 
 @app.route("/api/admin/settings/whatsapp", methods=["POST"])
